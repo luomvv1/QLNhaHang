@@ -1,0 +1,9 @@
+{
+  "BankId": "REPLACE_WITH_BANK_ID",
+  "AccountNo": "REPLACE_WITH_ACCOUNT_NUMBER",
+  "AccountName": "REPLACE_WITH_ACCOUNT_NAME",
+  "Branch": "REPLACE_WITH_BRANCH",
+  "WebhookSecret": "REPLACE_WITH_WEBHOOK_SECRET",
+  "IsAutoConfirmEnabled": false,
+  "GatewayProvider": "REPLACE_WITH_PAYMENT_PROVIDER"
+}

@@ -1,0 +1,7 @@
+﻿<template>
+  <router-view />
+</template>
+<style>
+html, body { margin: 0; padding: 0; height: 100%; background-color: #f8f9fa; }
+#app { height: 100%; }
+</style>

@@ -1,0 +1,361 @@
+/* Custom modern theme for Smart Restaurant & Dola Restaurant Design System */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Dancing+Script:wght@400;500;600;700&family=Quicksand:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Internal POS & Admin Brand Variables */
+  --primary-brand: #4f46e5;
+  --primary-hover: #4338ca;
+  --secondary-brand: #0ea5e9;
+  --accent-gold: #f59e0b;
+  --bg-slate: #0f172a;
+  --bg-sidebar: #1e293b;
+  --card-border: rgba(226, 232, 240, 0.85);
+  --shadow-subtle: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --shadow-hover: 0 10px 25px -3px rgba(15, 23, 42, 0.1), 0 4px 8px -2px rgba(15, 23, 42, 0.06);
+
+  /* ===== DOLA RESTAURANT DESIGN SYSTEM TOKENS ===== */
+  --dola-primary: #D69C52;
+  --dola-canvas: #143B36;
+  --dola-surface-alt: #10302C;
+  --dola-surface-raised: #1d4d46;
+  --dola-on-primary: #222222;
+  --dola-ink: #FFFFFF;
+  --dola-body: #D0D0D0;
+  --dola-muted: #8A9E9B;
+  --dola-hairline: rgba(214, 156, 82, 0.25);
+  --dola-accent: #C79C60;
+  --dola-font-display: 'Dancing Script', cursive;
+  --dola-font-body: 'Quicksand', sans-serif;
+  --dola-btn-shadow: rgb(163, 123, 68) 0px 3px 0px 0px;
+}
+
+body {
+  font-family: 'Quicksand', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+  background-color: #f8fafc;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #10302C;
+}
+::-webkit-scrollbar-thumb {
+  background: #D69C52;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C79C60;
+}
+
+/* ========================================================
+   DOLA RESTAURANT UTILITY CLASSES
+   ======================================================== */
+.dola-theme {
+  background-color: var(--dola-canvas);
+  color: var(--dola-body);
+  font-family: var(--dola-font-body);
+}
+
+.dola-font-title,
+.dola-script-title {
+  font-family: var(--dola-font-display);
+}
+
+.text-gold {
+  color: var(--dola-primary) !important;
+}
+
+.bg-dola-canvas {
+  background-color: var(--dola-canvas) !important;
+}
+
+.bg-dola-surface {
+  background-color: var(--dola-surface-alt) !important;
+}
+
+.bg-dola-raised {
+  background-color: var(--dola-surface-raised) !important;
+}
+
+.border-dola-gold {
+  border-color: var(--dola-hairline) !important;
+}
+
+/* Dola Card */
+.dola-card {
+  background: var(--dola-surface-alt);
+  border: 1px solid var(--dola-hairline);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dola-card:hover {
+  border-color: rgba(214, 156, 82, 0.5);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* Dola Button Primary */
+.dola-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--dola-primary);
+  color: #1b1814 !important;
+  font-family: var(--dola-font-body);
+  font-weight: 700;
+  font-size: 15px;
+  height: 44px;
+  padding: 0 24px;
+  border-radius: 8px;
+  border: none;
+  box-shadow: var(--dola-btn-shadow);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.dola-btn-primary:hover {
+  background-color: #e2ab63;
+  transform: translateY(-1px);
+  box-shadow: rgb(163, 123, 68) 0px 4px 0px 0px;
+}
+
+.dola-btn-primary:active {
+  transform: translateY(2px);
+  box-shadow: rgb(163, 123, 68) 0px 1px 0px 0px;
+}
+
+.dola-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: transparent;
+  color: var(--dola-primary) !important;
+  border: 1px solid var(--dola-primary);
+  font-family: var(--dola-font-body);
+  font-weight: 600;
+  font-size: 15px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dola-btn-outline:hover {
+  background-color: rgba(214, 156, 82, 0.15);
+  border-color: #e2ab63;
+  color: #FFFFFF !important;
+}
+
+/* Dola Inputs & Selects */
+.dola-input {
+  background-color: var(--dola-surface-alt);
+  border: 1px solid var(--dola-hairline);
+  color: #FFFFFF;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: var(--dola-font-body);
+  width: 100%;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dola-input:focus {
+  outline: none;
+  border-color: var(--dola-primary);
+  box-shadow: 0 0 0 3px rgba(214, 156, 82, 0.2);
+  background-color: #143B36;
+  color: #FFFFFF;
+}
+
+.dola-input::placeholder {
+  color: #7b9490;
+}
+
+/* Pill Badges */
+.dola-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--dola-hairline);
+  background: rgba(214, 156, 82, 0.12);
+  color: var(--dola-primary);
+}
+
+/* ========================================================
+   K80 THERMAL RECEIPT (CHẾ ĐỘ IN BILL NHIỆT 80MM)
+   ======================================================== */
+.k80-receipt-wrapper {
+  background-color: #ffffff;
+  color: #000000;
+  font-family: 'Courier New', Courier, monospace, 'Quicksand', sans-serif;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  border: 1px solid #d4d4d8;
+  position: relative;
+}
+
+.k80-receipt-wrapper::before,
+.k80-receipt-wrapper::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background-size: 12px 6px;
+}
+
+.k80-receipt-wrapper::before {
+  top: -6px;
+  background-image: radial-gradient(circle at 6px 0, transparent 6px, #ffffff 6px);
+}
+
+.k80-receipt-wrapper::after {
+  bottom: -6px;
+  background-image: radial-gradient(circle at 6px 6px, transparent 6px, #ffffff 6px);
+}
+
+.k80-divider-dashed {
+  border-top: 1px dashed #4b5563;
+  margin: 10px 0;
+}
+
+.k80-divider-double {
+  border-top: 3px double #000000;
+  margin: 12px 0;
+}
+
+.k80-item-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.k80-total-big {
+  font-size: 18px;
+  font-weight: 900;
+  color: #000000;
+}
+
+/* Media Print Rules - Only prints the K80 receipt */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  .k80-printable,
+  .k80-printable * {
+    visibility: visible;
+  }
+  
+  .k80-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 2mm !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ========================================================
+   LEGACY STYLES PRESERVED
+   ======================================================== */
+.card-modern {
+  background: #ffffff;
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-subtle);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-modern:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.badge-soft-primary { background-color: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; }
+.badge-soft-success { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.badge-soft-danger  { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+.badge-soft-warning { background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.badge-soft-info    { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(5px);
+  display: grid;
+  place-items: center;
+  z-index: 1050;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal-dialog-custom {
+  width: min(650px, calc(100vw - 2rem));
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  animation: slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(15px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.table-modern {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.table-modern th {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 14px 18px;
+  border-bottom: 2px solid #e2e8f0;
+}
+.table-modern td {
+  padding: 14px 18px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+}
+.table-modern tbody tr {
+  transition: background-color 0.15s ease;
+}
+.table-modern tbody tr:hover {
+  background-color: #f8fafc;
+}

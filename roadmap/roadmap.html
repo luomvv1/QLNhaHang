@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bản Đồ Lộ Trình Phát Triển Hệ Thống Nhà Hàng - Roadmap Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --success-bg: rgba(16, 185, 129, 0.15);
+      --success-border: #10b981;
+      --success-text: #34d399;
+      --warning-bg: rgba(245, 158, 11, 0.15);
+      --warning-border: #f59e0b;
+      --warning-text: #fbbf24;
+      --pending-bg: rgba(148, 163, 184, 0.1);
+      --pending-border: #475569;
+      --pending-text: #cbd5e1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      padding: 24px 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* Header Banner */
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .header-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .header-sub {
+      color: var(--text-muted);
+      font-size: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .stat-num {
+      font-size: 28px;
+      font-weight: 800;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Progress bar */
+    .progress-wrapper {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+
+    .progress-bar-bg {
+      background: #334155;
+      height: 12px;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar-fill {
+      background: linear-gradient(90deg, #10b981 0%, #38bdf8 100%);
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Controls Bar */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      background: var(--card-bg);
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+    }
+
+    .search-input {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      color: #fff;
+      font-size: 14px;
+      min-width: 280px;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+    }
+
+    .filter-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .btn-filter {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .btn-filter:hover {
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-filter.active {
+      background: var(--accent);
+      color: #0f172a;
+      font-weight: 700;
+      border-color: var(--accent);
+    }
+
+    /* Section Groups */
+    .module-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      background: #192233;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--card-border);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+      font-size: 14px;
+      vertical-align: middle;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .col-id {
+      width: 60px;
+      text-align: center;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .col-status {
+      width: 130px;
+      text-align: center;
+    }
+
+    .badge-done {
+      background: var(--success-bg);
+      color: var(--success-text);
+      border: 1px solid var(--success-border);
+    }
+
+    .badge-progress {
+      background: var(--warning-bg);
+      color: var(--warning-text);
+      border: 1px solid var(--warning-border);
+    }
+
+    .badge-pending {
+      background: var(--pending-bg);
+      color: var(--pending-text);
+      border: 1px solid var(--pending-border);
+    }
+
+    .link-task {
+      color: #e2e8f0;
+      text-decoration: none;
+      transition: color 0.15s ease;
+      cursor: pointer;
+    }
+
+    .link-task:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    /* Modal / Drawer */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      max-width: 720px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 28px;
+      position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: #334155;
+      border: none;
+      color: #fff;
+      font-size: 18px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-close:hover {
+      background: #ef4444;
+    }
+
+    .tip-box {
+      background: rgba(56, 189, 248, 0.1);
+      border-left: 4px solid var(--accent);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .checklist-item input[type="checkbox"] {
+      margin-top: 4px;
+      accent-color: #10b981;
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn-action {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .btn-action:hover {
+      background: var(--accent-hover);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-title">
+      <span>🗺️</span>
+      <span>HỆ THỐNG QUẢN LÝ ORDER MÓN ĂN THEO BÀN</span>
+    </div>
+    <div class="header-sub">
+      <span>📅 Cập nhật: <strong>2026-10-20</strong></span>
+      <span>🏷️ Phiên bản: <strong>v2.8.0</strong></span>
+      <span>📑 Đồ án: <strong>21_VoVanLuom</strong></span>
+      <span>💻 Tech: <strong>C# .NET Core + Vue 3 SPA + SQL Server</strong></span>
+    </div>
+  </header>
+
+  <!-- VSCode Tip Box -->
+  <div class="tip-box">
+    <strong>💡 Mẹo xem trong VS Code:</strong> Khi bạn mở file <code>roadmap_v3.md</code> trong VS Code, hãy nhấn tổ hợp phím 
+    <kbd style="background:#334155; padding:2px 6px; border-radius:4px;">Ctrl + Shift + V</kbd> (hoặc <kbd style="background:#334155; padding:2px 6px; border-radius:4px;">Ctrl + K, V</kbd>) 
+    hoặc bấm nút <strong>Open Preview</strong> ở góc trên bên phải màn hình để hiển thị giao diện bảng biểu đẹp y hệt hình mẫu nhé!
+  </div>
+
+  <!-- Stats Grid -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-label">Tổng số Module</span>
+      <span class="stat-num" id="totalModules">16</span>
+    </div>
+    <div class="stat-card" style="border-top: 3px solid #10b981;">
+      <span class="stat-label">Đã hoàn thành</span>
+      <span class="stat-num" style="color: #34d399;" id="doneModules">11</span>
+    </div>
+    <div class="stat-card" style="border-top: 3px solid #f59e0b;">
+      <span class="stat-label">Đang triển khai</span>
+      <span class="stat-num" style="color: #fbbf24;" id="progModules">3</span>
+    </div>
+    <div class="stat-card" style="border-top: 3px solid #94a3b8;">
+      <span class="stat-label">Chờ thực hiện</span>
+      <span class="stat-num" style="color: #cbd5e1;" id="pendingModules">2</span>
+    </div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress-wrapper">
+    <div style="display:flex; justify-content:space-between; font-size:14px; font-weight:600;">
+      <span>Tiến độ tổng thể hệ thống:</span>
+      <span id="progressText" style="color: var(--accent);">75.0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBar" style="width: 75.0%;"></div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <input type="text" id="searchInput" class="search-input" placeholder="🔍 Tìm kiếm module, bảng CSDL, API..." oninput="handleSearch()">
+    <div class="filter-group">
+      <button class="btn-filter active" onclick="filterStatus('all', this)">Tất cả</button>
+      <button class="btn-filter" onclick="filterStatus('done', this)">✅ Đã xong</button>
+      <button class="btn-filter" onclick="filterStatus('prog', this)">🟡 Đang làm</button>
+      <button class="btn-filter" onclick="filterStatus('pending', this)">⬜ Chưa làm</button>
+      <button class="btn-action" onclick="window.print()">🖨️ In / PDF</button>
+    </div>
+  </div>
+
+  <!-- Main Content Table Sections -->
+  <div id="moduleContainer">
+
+    <!-- Cụm 1: Admin Web & Core -->
+    <div class="module-section" data-subsystem="admin">
+      <div class="section-header">
+        <div class="section-title">
+          <span>🏛️</span>
+          <span>1.1. Core Backend & Quản trị Hệ thống (Admin Web)</span>
+        </div>
+        <span class="badge-pill" style="background:#334155;">6 Modules</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="col-id">#</th>
+            <th>Module</th>
+            <th class="col-status">Trạng thái</th>
+            <th>Còn lại / Nhiệm vụ trọng tâm</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-status="prog">
+            <td class="col-id"><a href="#m00" class="link-task" onclick="showDetail('m00')">M00</a></td>
+            <td><strong>Nền tảng, Môi trường & Kiến trúc</strong><br><small style="color:var(--text-muted)">.NET Web API, EF Core, SQL Server</small></td>
+            <td class="col-status"><span class="badge-pill badge-progress">🟡 Đang làm</span></td>
+            <td><a class="link-task" onclick="showDetail('m00')">M00 Hoàn thiện Global Exception Middleware & Logging Central</a></td>
+          </tr>
+          <tr data-status="prog">
+            <td class="col-id"><a href="#m01" class="link-task" onclick="showDetail('m01')">M01</a></td>
+            <td><strong>Tài khoản, Phân quyền & Quản lý Nhân sự</strong><br><small style="color:var(--text-muted)">Users, Roles, UserManagementView.vue</small></td>
+            <td class="col-status"><span class="badge-pill badge-progress">🟡 Đang làm</span></td>
+            <td><a class="link-task" onclick="showDetail('m01')">M01 Refresh Token & Quên mật khẩu qua Email 🔑</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m02" class="link-task" onclick="showDetail('m02')">M02</a></td>
+            <td><strong>Danh mục món ăn (Category)</strong><br><small style="color:var(--text-muted)">FoodCategories, CategoryManagementView.vue</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td>-</td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m03" class="link-task" onclick="showDetail('m03')">M03</a></td>
+            <td><strong>Món ăn & Hình ảnh (Food)</strong><br><small style="color:var(--text-muted)">Foods, FoodManagementView.vue</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m03')">M03 Upload ảnh trực tiếp lên Cloudinary / Storage 🔑</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m04" class="link-task" onclick="showDetail('m04')">M04</a></td>
+            <td><strong>Biến thể & Size món ăn (FoodVariant)</strong><br><small style="color:var(--text-muted)">FoodVariants (Size Nhỏ, Lớn, Giá riêng)</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td>-</td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m05" class="link-task" onclick="showDetail('m05')">M05</a></td>
+            <td><strong>Sơ đồ bàn & Phân khu vực (DiningTable)</strong><br><small style="color:var(--text-muted)">DiningTables, TableManagementView.vue</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m05')">Đã xong: Sơ đồ bàn, phân khu 1 chạm, chuẩn hóa 3 trạng thái vận hành (Hoạt động / Sửa chữa / Ngừng dùng), PATCH reactivate, chặn bàn hỏng</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Cụm 2: Staff Order -->
+    <div class="module-section" data-subsystem="staff">
+      <div class="section-header">
+        <div class="section-title">
+          <span>📱</span>
+          <span>1.2. Nghiệp vụ Order & Phục vụ (Staff POS / Mobile)</span>
+        </div>
+        <span class="badge-pill" style="background:#334155;">1 Module (3 Nhánh nghiệp vụ)</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="col-id">#</th>
+            <th>Module</th>
+            <th class="col-status">Trạng thái</th>
+            <th>Còn lại / Nhiệm vụ trọng tâm</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m06" class="link-task" onclick="showDetail('m06')">M06</a></td>
+            <td><strong>Order tại bàn & Gán bàn</strong><br><small style="color:var(--text-muted)">Orders, OrderTables, OrderItems</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m06')">Đã xong: Mở bàn, chọn món, chọn size, ghi chú nhanh</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m06" class="link-task" onclick="showDetail('m06')">M06</a></td>
+            <td><strong>Chuyển bàn & Gộp bàn</strong><br><small style="color:var(--text-muted)">OrderTables, MergedIntoOrderId</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m06')">Đã xong: Chuyển bàn, ghép bàn trống (đoàn đông), gộp 2 đơn</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m06" class="link-task" onclick="showDetail('m06')">M06</a></td>
+            <td><strong>Ghi chú & Xác nhận gửi Bếp</strong><br><small style="color:var(--text-muted)">OrderItems.ItemStatus: pending -> confirmed</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m06')">Đã xong: Gửi món xuống bếp (`confirmed`), in phiếu tạm tính</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Cụm 3: Chef KDS -->
+    <div class="module-section" data-subsystem="chef">
+      <div class="section-header">
+        <div class="section-title">
+          <span>🍳</span>
+          <span>1.3. Khu vực Bếp & Bar (Kitchen Display System - KDS)</span>
+        </div>
+        <span class="badge-pill" style="background:#334155;">1 Module (3 Nhánh nghiệp vụ)</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="col-id">#</th>
+            <th>Module</th>
+            <th class="col-status">Trạng thái</th>
+            <th>Còn lại / Nhiệm vụ trọng tâm</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m07" class="link-task" onclick="showDetail('m07')">M07</a></td>
+            <td><strong>Hàng đợi chế biến (KDS Queue)</strong><br><small style="color:var(--text-muted)">Màn hình Bếp xem thẻ bàn & hàng đợi FIFO</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m07')">Đã xong: Thẻ bàn Kanban & Hàng đợi món FIFO thời gian thực</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m07" class="link-task" onclick="showDetail('m07')">M07</a></td>
+            <td><strong>Cập nhật tiến độ món ăn</strong><br><small style="color:var(--text-muted)">cooking -> ready -> served kèm ChefId</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m07')">Đã xong: 1 chạm chuyển trạng thái & hoàn tất toàn bộ bàn, SignalR 0s</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m07" class="link-task" onclick="showDetail('m07')">M07</a></td>
+            <td><strong>Báo hết món (Sold out)</strong><br><small style="color:var(--text-muted)">Foods.IsActive & Foods.FoodStatus</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m07')">Đã xong: Đầu bếp bật/tắt hết món, đồng bộ tức thì sang POS</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Cụm 4: Customer Portal -->
+    <div class="module-section" data-subsystem="customer">
+      <div class="section-header">
+        <div class="section-title">
+          <span>👥</span>
+          <span>1.4. Khách hàng & Đặt bàn (Customer Portal)</span>
+        </div>
+        <span class="badge-pill" style="background:#334155;">3 Modules</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="col-id">#</th>
+            <th>Module</th>
+            <th class="col-status">Trạng thái</th>
+            <th>Còn lại / Nhiệm vụ trọng tâm</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m08" class="link-task" onclick="showDetail('m08')">M08</a></td>
+            <td><strong>Hồ sơ khách hàng & Tích điểm</strong><br><small style="color:var(--text-muted)">Customers, PointTransactions</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m08')">Đã xong: Tra cứu SĐT, tạo nhanh thành viên, tích/tiêu điểm tại POS</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m11" class="link-task" onclick="showDetail('m11')">M11</a></td>
+            <td><strong>Đặt bàn trước & Xếp bàn thông minh</strong><br><small style="color:var(--text-muted)">Reservations, DiningTables, ReservationManagementView.vue</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m11')">Đã xong: Đặt online, Xếp bàn thông minh, Gộp bàn cùng khu vực, UI/UX Pro desktop-first, SignalR realtime</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m14" class="link-task" onclick="showDetail('m14')">M14</a></td>
+            <td><strong>Đánh giá món ăn & Phản hồi</strong><br><small style="color:var(--text-muted)">Reviews (1-5 sao, bình luận)</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m14')">Đã xong: Khách đánh giá 1-5 sao và bình luận món ăn sau bữa ăn</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Cụm 5: Mở rộng (Kho, Doanh thu, AI) -->
+    <div class="module-section" data-subsystem="extension">
+      <div class="section-header">
+        <div class="section-title">
+          <span>🚀</span>
+          <span>1.5. Phân hệ mở rộng: Kho hàng, Báo cáo & AI</span>
+        </div>
+        <span class="badge-pill" style="background:#334155;">5 Modules</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="col-id">#</th>
+            <th>Module</th>
+            <th class="col-status">Trạng thái</th>
+            <th>Còn lại / Nhiệm vụ trọng tâm</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m09" class="link-task" onclick="showDetail('m09')">M09</a></td>
+            <td><strong>Khuyến mãi & Voucher (Promotions)</strong><br><small style="color:var(--text-muted)">Promotions, PromotionUsages</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m09')">Đã xong: Nhập voucher, kiểm tra điều kiện & giảm giá trực tiếp</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m10" class="link-task" onclick="showDetail('m10')">M10</a></td>
+            <td><strong>Thanh toán & Xuất hóa đơn</strong><br><small style="color:var(--text-muted)">Invoices, InvoiceItems, Payments</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m10')">Đã xong: Checkout POS đa phương thức, in bill K80, VietQR Napas 247, Webhook tự động & SignalR</a></td>
+          </tr>
+          <tr data-status="prog">
+            <td class="col-id"><a href="#m12" class="link-task" onclick="showDetail('m12')">M12</a></td>
+            <td><strong>Kho nguyên liệu & Nhà cung cấp (WMS/BOM)</strong><br><small style="color:var(--text-muted)">Suppliers, InventoryItems, FoodIngredients, StockReceipts</small></td>
+            <td class="col-status"><span class="badge-pill badge-progress">🟡 Đang làm</span></td>
+            <td><a class="link-task" onclick="showDetail('m12')">Backend FEFO/FIFO, kiểm kê batch, đối soát cuối ca đã xong; còn UI và E2E</a></td>
+          </tr>
+          <tr data-status="pending">
+            <td class="col-id"><a href="#m13" class="link-task" onclick="showDetail('m13')">M13</a></td>
+            <td><strong>Thống kê & Báo cáo doanh thu</strong><br><small style="color:var(--text-muted)">Invoices, Payments, Charts</small></td>
+            <td class="col-status"><span class="badge-pill badge-pending">⬜ Chưa làm</span></td>
+            <td><a class="link-task" onclick="showDetail('m13')">M13-R1: Biểu đồ doanh thu ngày/tháng, món bán chạy nhất</a></td>
+          </tr>
+          <tr data-status="done">
+            <td class="col-id"><a href="#m14ai" class="link-task" onclick="showDetail('m14ai')">M14-AI</a></td>
+            <td><strong>Trợ lý tư vấn món bằng AI (Gemini)</strong><br><small style="color:var(--text-muted)">Google Gemini API, AiConversations, AiMessages</small></td>
+            <td class="col-status"><span class="badge-pill badge-done">✅ Đã xong</span></td>
+            <td><a class="link-task" onclick="showDetail('m14ai')">Đã xong: Chatbot AI tư vấn món ăn theo sở thích, trích xuất thẻ món tương tác</a></td>
+          </tr>
+          <tr data-status="pending">
+            <td class="col-id"><a href="#m15" class="link-task" onclick="showDetail('m15')">M15</a></td>
+            <td><strong>Nhật ký hệ thống & Audit Log</strong><br><small style="color:var(--text-muted)">AuditLogs</small></td>
+            <td class="col-status"><span class="badge-pill badge-pending">⬜ Chưa làm</span></td>
+            <td><a class="link-task" onclick="showDetail('m15')">M15-R1: Ghi vết thay đổi dữ liệu quan trọng phục vụ bảo vệ đồ án</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeModalDirect()">&times;</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const moduleData = {
+    m00: {
+      id: "M00",
+      title: "Nền tảng, Môi trường & Kiến trúc Core",
+      status: "🟡 Đang làm",
+      subsystem: "Admin Web & Core Backend",
+      dbTables: "Toàn bộ DbContext",
+      useCases: ["Cấu hình Dependency Injection", "Global Exception Handler", "Centralized Logging"],
+      remaining: "M00-R1: Hoàn thiện Global Exception Middleware trả HTTP Status Code chuẩn RFC 7807 và Serilog ghi log ra file."
+    },
+    m01: {
+      id: "M01",
+      title: "Tài khoản, Phân quyền & Quản lý Nhân sự",
+      status: "🟡 Đang làm",
+      subsystem: "Admin Web & Auth",
+      dbTables: "Users, Roles",
+      useCases: ["UC-U01: Đăng nhập JWT", "UC-U02: Cấp tài khoản nhân viên", "UC-U03: Khóa/Mở khóa tài khoản", "UC-U04: Danh sách & lọc nhân viên"],
+      remaining: "M01-R1: Bổ sung cơ chế Refresh Token JWT và quy trình Quên mật khẩu gửi mã qua Email."
+    },
+    m02: {
+      id: "M02",
+      title: "Danh mục món ăn (Category)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Admin Web",
+      dbTables: "FoodCategories",
+      useCases: ["UC-A01: Thêm, sửa, xóa danh mục món ăn", "Lọc món theo danh mục"],
+      remaining: "Đã hoàn thành 100% (Backend API + Vue 3 UI + Phân trang)."
+    },
+    m03: {
+      id: "M03",
+      title: "Món ăn & Hình ảnh (Food)",
+      status: "✅ Đã xong (Chờ Storage)",
+      subsystem: "Admin Web",
+      dbTables: "Foods, FoodCategories",
+      useCases: ["UC-A02: Thêm món ăn mới", "UC-A04: Ngừng bán / Mở bán lại", "UC-A05: Tìm kiếm & lọc thực đơn"],
+      remaining: "M03-R1: Tích hợp thư viện tải ảnh trực tiếp (Upload image file) lên Cloudinary hoặc Static Folder Server."
+    },
+    m04: {
+      id: "M04",
+      title: "Biến thể & Size món ăn (FoodVariant)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Admin Web",
+      dbTables: "FoodVariants, Foods",
+      useCases: ["UC-A03: Cấu hình biến thể giá (Size Nhỏ, Lớn...)", "Ngăn xóa biến thể làm lỗi khi mở bán lại món"],
+      remaining: "Đã hoàn thành 100% (Backend API + Vue 3 Modal CRUD biến thể)."
+    },
+    m05: {
+      id: "M05",
+      title: "Sơ đồ bàn & Phân khu (DiningTable)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Admin Web & Staff POS",
+      dbTables: "DiningTables, OrderTables",
+      useCases: [
+        "UC-B01: Thêm bàn ăn mới (Mã bàn tự động TB-xxx)",
+        "UC-B02: Phân khu vực bàn linh hoạt (chọn nhanh 1 chạm, thêm phân khu mới tức thì)",
+        "UC-B03: Chọn nhanh sức chứa bàn 2, 4, 6, 8, 10 chỗ",
+        "UC-B04: Chuẩn hóa 3 trạng thái vận hành thiết bị: 🟢 Hoạt động, 🟡 Đang sửa chữa, 🔴 Ngừng sử dụng",
+        "UC-B05: Sơ đồ bàn POS trực quan & thanh điều hướng tab phân khu kèm số lượng bàn thực tế",
+        "UC-B06: Khôi phục bàn ngừng dùng qua PATCH /api/admin/table/reactivate",
+        "UC-B07: Ràng buộc an toàn: Tự động loại trừ bàn đang sửa chữa (maintenance) khỏi đặt bàn/order"
+      ],
+      remaining: "Đã hoàn thành 100% (Backend API + Vue 3 TableManagementView)."
+    },
+    m06: {
+      id: "M06",
+      title: "Quy trình Order tại bàn (Staff POS)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Staff Mobile / Web",
+      dbTables: "Orders, OrderTables, OrderItems, FoodVariants",
+      useCases: ["UC-C01: Mở order bàn", "UC-C02: Chọn món và size", "UC-C03: Ghi chú món", "UC-C04: Gửi món xuống bếp", "UC-C06: Chuyển bàn", "UC-C07: Gộp bàn"],
+      remaining: "Đã hoàn thành 100% (Backend StaffOrderController + Vue 3 StaffOrderPosView & Sơ đồ bàn)."
+    },
+    m07: {
+      id: "M07",
+      title: "Hàng đợi Bếp & KDS (Chef)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Chef KDS",
+      dbTables: "OrderItems, Foods, Users",
+      useCases: ["UC-D01: Màn hình bếp theo thời gian order", "UC-D02: Đang nấu (cooking)", "UC-D03: Nấu xong (ready)", "UC-D04: Phục vụ (served)", "UC-D05: Bếp báo hết món", "Lọc 4 quầy, luồng 1 chạm, SignalR 0s"],
+      remaining: "Đã hoàn thành 100% (Backend ChefController + Vue 3 KitchenDisplayView)."
+    },
+    m08: {
+      id: "M08",
+      title: "Khách hàng & Tích điểm thành viên",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Customer Portal & Staff",
+      dbTables: "Customers, PointTransactions, Users",
+      useCases: ["UC-E01: Đăng ký/đăng nhập tài khoản khách", "UC-E02: Tra cứu thành viên bằng SĐT, tạo nhanh lúc thanh toán", "Tích điểm % hóa đơn & tiêu điểm trừ bill", "Lưu vết PointTransactions"],
+      remaining: "Đã hoàn thành Core. Mở rộng tương lai: Phân hạng thành viên (Bạc, Vàng, Kim Cương)."
+    },
+    m09: {
+      id: "M09",
+      title: "Khuyến mãi & Mã giảm giá (Promotions)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Admin Web & POS",
+      dbTables: "Promotions, PromotionUsages",
+      useCases: ["UC-F01: Tạo/sửa voucher giảm % hoặc tiền mặt cố định", "Kiểm tra hạn dùng và đơn tối thiểu", "Giới hạn lượt dùng và lưu PromotionUsages"],
+      remaining: "Đã hoàn thành 100% (Backend PromotionController + Vue 3 PromotionManagementView)."
+    },
+    m10: {
+      id: "M10",
+      title: "Thanh toán & Xuất hóa đơn (Checkout POS)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Staff POS & Admin",
+      dbTables: "Invoices, InvoiceItems, Payments, DiningTables",
+      useCases: ["UC-F03: Tạo hóa đơn thanh toán duy nhất INV-xxx", "UC-F04: Lưu snapshot tên món, size, đơn giá", "UC-F05: Đa phương thức (Tiền mặt, VietQR Napas 247, Thẻ, Ví)", "In bill K80, Webhook tự động nhận tiền, SignalR tức thì"],
+      remaining: "Đã hoàn thành 100% kiến trúc và luồng test. Kích hoạt tài khoản thật (PayOS/SePay) khi golive thực tế."
+    },
+    m11: {
+      id: "M11",
+      title: "Đặt bàn trước & Xếp bàn thông minh (Reservations)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Customer Portal & Admin Web",
+      dbTables: "Reservations, DiningTables, Customers",
+      useCases: [
+        "UC-E03: Khách đặt bàn online theo tài khoản, chọn ngày giờ, số lượng khách và ghi chú",
+        "UC-E08: Điều phối & Xếp bàn thông minh: Ưu tiên bàn đơn đúng sức chứa, gợi ý gộp bàn cùng phân khu khi cần",
+        "Ràng buộc an toàn: Bắt buộc các bàn gộp phải thuộc cùng một phân khu vực (AreaName); Chặn bàn đang sửa chữa (maintenance)",
+        "UC-E09: Giao diện Quản lý Đặt bàn UI/UX Pro desktop-first, không cuộn ngang, gỡ bỏ sticky, nút pastel, avatar tròn",
+        "UC-E10: Bộ lọc đa chiều theo ngày hẹn (Hôm nay, Ngày mai, Tất cả) & KPI metrics realtime",
+        "Check-in đón khách vào bàn, cập nhật sơ đồ bàn realtime và SignalR phát sóng toàn cục"
+      ],
+      remaining: "Đã hoàn thành 100% Core & Giao diện quản lý. Mở rộng tương lai: Đặt cọc thanh toán trực tuyến."
+    },
+    m12: {
+      id: "M12",
+      title: "Kho nguyên liệu & Định lượng món (WMS/BOM)",
+      status: "🟡 Đang triển khai",
+      subsystem: "Admin & Chef",
+      dbTables: "Suppliers, InventoryItems, FoodIngredients, InventoryBatches, StockReceipts, StockMovements, DailyPortionControls, KitchenReconciliationLines",
+      useCases: ["UC-G01-G03: NCC, nguyên liệu, định lượng món BOM", "Phiếu nhập/xuất/hoàn/hủy FEFO/FIFO trong transaction", "Kế hoạch ngày, tổng hợp BOM, đối soát cấp phát cuối ca"],
+      remaining: "Backend FEFO/FIFO, kiểm kê batch, đối soát cuối ca đã xong; hoàn thiện giao diện quản lý phiếu và nghiệm thu E2E."
+    },
+    m13: {
+      id: "M13",
+      title: "Thống kê & Báo cáo doanh thu",
+      status: "⬜ Chưa làm",
+      subsystem: "Admin Dashboard",
+      dbTables: "Invoices, Payments, InvoiceItems",
+      useCases: ["UC-H01: Doanh thu theo ngày/tháng", "UC-H02: Top món bán chạy", "Xuất file Excel/PDF"],
+      remaining: "M13-R1: API thống kê doanh thu và tích hợp biểu đồ Chart.js vào Admin Dashboard."
+    },
+    m14: {
+      id: "M14",
+      title: "Đánh giá món ăn & Phản hồi",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Customer Portal",
+      dbTables: "Reviews, Invoices",
+      useCases: ["UC-E05: Đánh giá 1-5 sao sau bữa ăn", "Bình luận trải nghiệm món ăn"],
+      remaining: "Đã hoàn thành 100% (Backend ReviewController + Vue 3 Customer Review)."
+    },
+    m14ai: {
+      id: "M14-AI",
+      title: "Trợ lý AI tư vấn thực đơn (Gemini)",
+      status: "✅ Đã xong & Kiểm thử đạt",
+      subsystem: "Customer AI",
+      dbTables: "AiConversations, AiMessages, Foods, FoodCategories",
+      useCases: ["Hỏi đáp món ăn thông minh với Google Gemini Flash", "Gợi ý món theo số lượng người, khẩu vị, ngân sách", "Trích xuất thẻ món tương tác trực tiếp"],
+      remaining: "Đã hoàn thành 100% (Backend Gemini Service + Vue 3 AiAssistantDrawer)."
+    },
+    m15: {
+      id: "M15",
+      title: "Nhật ký hệ thống & Audit Log",
+      status: "⬜ Chưa làm",
+      subsystem: "Admin Core",
+      dbTables: "AuditLogs",
+      useCases: ["UC-I01: Ghi log sửa giá, xóa món, hủy order", "Giám sát thao tác tài khoản"],
+      remaining: "M15-R1: Ghi vết thay đổi dữ liệu quan trọng phục vụ bảo vệ đồ án tốt nghiệp."
+    }
+  };
+
+  function showDetail(key) {
+    const item = moduleData[key];
+    if (!item) return;
+
+    let useCasesHtml = item.useCases.map(uc => `<li>${uc}</li>`).join("");
+
+    const html = `
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <span class="badge-pill" style="background:#0284c7; color:#fff; font-size:14px;">${item.id}</span>
+        <h2 style="font-size:22px; color:#fff; margin:0;">${item.title}</h2>
+      </div>
+      <div style="margin-bottom:16px; display:flex; gap:12px; flex-wrap:wrap;">
+        <span class="badge-pill" style="background:#334155;">Phân hệ: <strong>${item.subsystem}</strong></span>
+        <span class="badge-pill" style="background:#1e3a8a;">CSDL: <strong>${item.dbTables}</strong></span>
+        <span class="badge-pill" style="background:rgba(255,255,255,0.1);">${item.status}</span>
+      </div>
+      <div style="margin-bottom:16px;">
+        <h4 style="color:var(--accent); margin-bottom:8px;">📌 Các Use Case / Chức năng chính:</h4>
+        <ul style="padding-left:20px; line-height:1.8;">${useCasesHtml}</ul>
+      </div>
+      <div style="background:#0f172a; padding:16px; border-radius:10px; border:1px solid #334155;">
+        <h4 style="color:#fbbf24; margin-bottom:6px;">⚡ Việc cần thực hiện kế tiếp:</h4>
+        <p style="font-size:14px; margin:0;">${item.remaining}</p>
+      </div>
+    `;
+
+    document.getElementById("modalBody").innerHTML = html;
+    document.getElementById("detailModal").style.display = "flex";
+  }
+
+  function closeModal(e) {
+    if (e.target.id === "detailModal") {
+      document.getElementById("detailModal").style.display = "none";
+    }
+  }
+
+  function closeModalDirect() {
+    document.getElementById("detailModal").style.display = "none";
+  }
+
+  function filterStatus(status, btn) {
+    document.querySelectorAll(".btn-filter").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    const rows = document.querySelectorAll("tbody tr");
+    rows.forEach(r => {
+      if (status === "all" || r.getAttribute("data-status") === status) {
+        r.style.display = "";
+      } else {
+        r.style.display = "none";
+      }
+    });
+  }
+
+  function handleSearch() {
+    const val = document.getElementById("searchInput").value.toLowerCase();
+    const rows = document.querySelectorAll("tbody tr");
+    rows.forEach(r => {
+      const text = r.innerText.toLowerCase();
+      if (text.includes(val)) {
+        r.style.display = "";
+      } else {
+        r.style.display = "none";
+      }
+    });
+  }
+</script>
+
+</body>
+</html>

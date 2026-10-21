@@ -1,0 +1,40 @@
+# Local configuration and secrets
+backend/Restaurant.Api/appsettings.json
+backend/Restaurant.Api/appsettings.Development.json
+backend/Restaurant.Api/bank_config.json
+backend/Restaurant.Api/Restaurant.Api.csproj.user
+*.env
+*.env.*
+!.env.example
+
+# Build output and IDE state
+**/bin/
+**/obj/
+**/.vs/
+**/artifacts/
+.vs/
+
+# Local verification and scratch output
+.tmp/
+.tmp-*/
+.verify/
+bin/
+
+# Frontend and mobile dependencies/build output
+**/node_modules/
+**/dist/
+**/coverage/
+fontend/mobile/.dart_tool/
+fontend/mobile/.flutter-plugins-dependencies
+fontend/mobile/.pub-cache/
+fontend/mobile/.pub/
+fontend/mobile/build/
+
+# Logs and OS files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Local agent tools
+.agent/
