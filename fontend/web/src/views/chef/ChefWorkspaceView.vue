@@ -8,16 +8,13 @@
         <!-- Brand & Title -->
         <div class="d-flex align-items-center gap-3">
           <div class="brand-icon shadow-sm">
-            <span>👨‍🍳</span>
+            <ChefHat :size="23" aria-hidden="true" />
           </div>
           <div>
             <div class="d-flex align-items-center gap-2">
-              <h5 class="mb-0 text-slate-800 fw-bold tracking-wide">KITCHEN DISPLAY SYSTEM</h5>
-              <span class="badge bg-indigo-subtle text-indigo border border-indigo-subtle fw-bold text-uppercase" style="font-size: 0.65rem;">
-                KDS ĐA TRẠM BẾP
-              </span>
+              <h1 class="kitchen-page-title">Điều hành bếp</h1>
             </div>
-            <small class="text-muted">Hệ thống điều phối 3 quầy bếp: Quầy Nướng & Chiên • Quầy Nấu & Lẩu • Quầy Pha Chế & Đồ Uống</small>
+            <small class="text-muted">{{ selectedCategoryId ? categories.find(c => c.categoryId === selectedCategoryId)?.categoryName : 'Tất cả quầy bếp' }}</small>
           </div>
         </div>
 
@@ -54,9 +51,9 @@
         </div>
 
         <!-- Mode Switcher Tabs & Controls -->
-        <div class="d-flex align-items-center gap-2">
+        <div class="kitchen-controls">
           <!-- View Modes -->
-          <div class="btn-group shadow-sm rounded-pill p-1 bg-slate-100 border" role="group">
+          <div class="kitchen-view-tabs" role="group" aria-label="Chế độ xem bếp">
             <button
               type="button"
               class="btn btn-sm rounded-pill px-3 transition fw-semibold"
@@ -64,7 +61,7 @@
               @click="viewMode = 'cards'"
               title="Xem theo thẻ bàn"
             >
-              📑 Thẻ Bàn ({{ visibleOrdersCount }})
+              Theo bàn ({{ visibleOrdersCount }})
             </button>
             <button
               type="button"
@@ -73,7 +70,7 @@
               @click="viewMode = 'queue'"
               title="Xem hàng đợi phẳng theo món để nấu theo mẻ"
             >
-              📋 Hàng Đợi ({{ filteredQueue.length }})
+              Hàng đợi ({{ filteredQueue.length }})
             </button>
             <button
               type="button"
@@ -82,7 +79,7 @@
               @click="viewMode = 'pass'"
               title="Màn hình treo quầy ra món để phục vụ bưng đi trực quan"
             >
-              🛎️ Màn Hình Ra Món (Pass)
+              Chờ bưng
               <span v-if="metrics.readyCount > 0" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-white">
                 {{ metrics.readyCount }}
               </span>
@@ -94,7 +91,7 @@
               @click="viewMode = 'soldout'"
               title="Báo hết món"
             >
-              🚫 Hết Món
+              Suất ăn &amp; hết món
             </button>
           </div>
 
@@ -105,26 +102,38 @@
             @click="toggleSound"
             :title="soundEnabled ? 'Chuông báo: ĐANG BẬT' : 'Chuông báo: ĐÃ TẮT'"
           >
-            {{ soundEnabled ? '🔔' : '🔕' }}
+            <Volume2 v-if="soundEnabled" :size="18" /><VolumeX v-else :size="18" />
           </button>
 
           <!-- SignalR Realtime Live Status -->
-          <span class="badge bg-emerald-subtle text-emerald border border-emerald-subtle px-3 py-2 rounded-pill fw-bold shadow-xs d-flex align-items-center gap-1" title="Kết nối trực tiếp Real-time qua WebSocket">
-            <span class="realtime-dot"></span> REALTIME LIVE
-          </span>
           <button class="btn btn-outline-secondary btn-sm rounded-circle p-2 shadow-sm bg-white" @click="fetchKitchenData" :disabled="loading" title="Làm mới thủ công">
-            <span :class="{ 'spinner-border spinner-border-sm': loading }">🔄</span>
+            <RefreshCw :size="18" :class="{ 'is-spinning': loading }" />
           </button>
 
           <!-- Navigation Links -->
           <router-link v-if="userRole === 'manager' || userRole === 'admin'" to="/admin" class="btn btn-outline-secondary btn-sm rounded-circle p-2 shadow-sm bg-white" title="Về Quản Trị">
-            ⚙️
+            <Settings :size="18" />
           </router-link>
-          <router-link to="/staff" class="btn btn-outline-indigo btn-sm rounded-pill px-3 fw-semibold shadow-sm bg-white" title="Về Màn Phục Vụ">
-            🤵 Phục Vụ
+          <router-link to="/staff" class="btn btn-outline-indigo btn-sm rounded-pill px-3 fw-semibold shadow-sm bg-white" title="Sang Màn Phục Vụ (Staff POS)">
+            <Users :size="17" /> Phục vụ
           </router-link>
-          <button class="btn btn-outline-danger btn-sm rounded-circle p-2 shadow-sm bg-white" @click="handleLogout" title="Đăng xuất">
-            🚪
+          <router-link to="/customer/menu" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold shadow-sm bg-white" title="Xem Trang Thực Đơn & Người Dùng">
+            <BookOpen :size="17" /> Trang Khách
+          </router-link>
+
+          <!-- Chef Profile & Shift Info Pill -->
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 fw-semibold shadow-sm bg-white d-flex align-items-center gap-1.5"
+            @click="showChefShiftModal = true"
+            title="Xem Hồ Sơ & Thông Tin Ca Làm Bếp"
+          >
+            <span class="badge rounded-circle p-1 bg-success" style="width: 8px; height: 8px;"></span>
+            <span class="small fw-bold text-dark">{{ userName }}</span>
+          </button>
+
+          <button class="btn btn-outline-danger btn-sm rounded-circle p-2 shadow-sm bg-white" @click="handleLogout" title="Đăng xuất ca">
+            <LogOut :size="18" />
           </button>
         </div>
       </div>
@@ -138,16 +147,8 @@
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
           <!-- Station Title & Status -->
           <div class="d-flex align-items-center gap-2">
-            <span class="fs-5">📂</span>
-            <span class="fw-bold text-slate-700 small text-uppercase" style="letter-spacing: 0.5px;">
-              QUẦY CHẾ BIẾN:
-            </span>
-            <span class="badge bg-indigo text-white fw-bold fs-6 px-3 py-1 rounded-pill shadow-xs">
-              {{ selectedCategoryName }}
-            </span>
-            <small class="text-muted d-none d-lg-inline">
-              (Màn hình tự động nhớ quầy bếp này trên thiết bị của bạn)
-            </small>
+            <Utensils :size="18" />
+            <span class="fw-semibold text-slate-700 small">{{ selectedCategoryName }}</span>
           </div>
 
           <!-- Quick Action Buttons -->
@@ -161,7 +162,7 @@
                 @change="onAutoCookingToggle"
               />
               <label class="form-check-label text-slate-700 fw-semibold cursor-pointer" for="autoCookingSwitch" title="Tự động nhận nấu khi có đơn mới">
-                ⚡ Tự nhận nấu
+                Tự nhận nấu
               </label>
             </div>
 
@@ -186,7 +187,7 @@
             :class="selectedCategoryId === 0 ? 'btn-indigo text-white shadow' : 'btn-outline-slate text-slate-700 bg-white'"
             @click="selectCategory(0)"
           >
-            🌐 Tất Cả Quầy Bếp ({{ totalItemsAllCategories }})
+            Tất cả quầy ({{ totalItemsAllCategories }})
           </button>
 
           <!-- 3 Quầy Bếp Chuẩn từ API -->
@@ -371,6 +372,8 @@
                       </small>
 
                       <div class="d-flex align-items-center gap-1">
+                        <button v-if="item.itemStatus === 'confirmed' && item.canCancel !== false" class="btn btn-outline-danger btn-sm"
+                          :disabled="updatingItemId === item.orderItemId" @click="cancelKitchenItem(item)">Không thể phục vụ</button>
                         <!-- Tùy chọn: Đang nấu -->
                         <button
                           v-if="item.itemStatus === 'confirmed'"
@@ -384,7 +387,7 @@
 
                         <!-- NÚT 1-TOUCH CHÍNH: XONG MÓN (RA QUẦY) -->
                         <button
-                          v-if="item.itemStatus === 'confirmed' || item.itemStatus === 'cooking'"
+                          v-if="item.itemStatus === 'cooking'"
                           class="btn btn-emerald btn-sm fw-bold px-3 py-1 rounded-pill shadow-xs text-white"
                           @click="updateItemStatus(item.orderItemId, 'ready')"
                           :disabled="updatingItemId === item.orderItemId"
@@ -544,7 +547,7 @@
         </div>
 
         <!-- Flat Queue Table -->
-        <div class="card bg-white border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="kitchen-availability-section bg-white">
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
               <thead class="bg-slate-100 text-slate-600 text-uppercase" style="font-size: 0.75rem;">
@@ -605,8 +608,10 @@
                   </td>
                   <td class="text-end">
                     <div class="d-flex justify-content-end align-items-center gap-1">
+                      <button v-if="item.itemStatus === 'confirmed' && item.canCancel !== false" class="btn btn-outline-danger btn-sm"
+                        :disabled="updatingItemId === item.orderItemId" @click="cancelKitchenItem(item)">Không thể phục vụ</button>
                       <button
-                        v-if="item.itemStatus === 'confirmed' || item.itemStatus === 'cooking'"
+                        v-if="item.itemStatus === 'cooking'"
                         class="btn btn-emerald btn-sm fw-bold px-3 rounded-pill text-white shadow-xs"
                         @click="updateItemStatus(item.orderItemId, 'ready')"
                         :disabled="updatingItemId === item.orderItemId"
@@ -785,83 +790,65 @@
       <!-- VIEW MODE 4: BÁO HẾT MÓN (SOLD OUT MANAGER) -->
       <!-- ============================================================== -->
       <div v-else-if="viewMode === 'soldout'">
-        <div class="card bg-white border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="kitchen-availability-section bg-white">
           <div class="card-header bg-slate-50 border-0 py-3 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-              <h5 class="text-slate-900 fw-bold mb-0">🚫 BÁO HẾT MÓN BẾP (OUT OF STOCK)</h5>
-              <small class="text-muted">Khi bật 'Hết món', nhân viên phục vụ và khách quét QR sẽ không thể đặt món này.</small>
+              <h5 class="text-slate-900 fw-semibold mb-0">Tình trạng món &amp; size</h5>
             </div>
 
-            <div class="d-flex align-items-center gap-2">
+            <div class="kitchen-availability-tools">
               <input
                 type="text"
-                class="form-control form-control-sm bg-white text-slate-800 border rounded-pill"
+                class="form-control form-control-sm bg-white text-slate-800 border"
                 placeholder="Tìm món theo tên hoặc quầy..."
                 v-model="foodSearchQuery"
-                style="width: 260px;"
+                aria-label="Tìm món theo tên hoặc quầy"
               />
-              <button class="btn btn-outline-secondary btn-sm rounded-pill" @click="fetchFoods">🔄 Tải lại món</button>
+              <button class="btn btn-outline-secondary btn-sm" title="Tải lại món" aria-label="Tải lại món" @click="fetchFoods"><RefreshCw :size="18" /></button>
             </div>
           </div>
 
           <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive kitchen-availability-table">
               <table class="table table-hover align-middle mb-0">
                 <thead class="bg-slate-100 text-slate-600 text-uppercase" style="font-size: 0.75rem;">
                   <tr>
-                    <th style="width: 60px;">ID</th>
-                    <th>Tên Món Ăn</th>
-                    <th>Quầy Chế Biến</th>
-                    <th>Giá Tiêu Chuẩn</th>
-                    <th class="text-center" style="width: 140px;">Trạng Thái Phục Vụ</th>
-                    <th class="text-end" style="width: 160px;">Thao Tác Bếp</th>
+                    <th>Món / size</th>
+                    <th class="text-end">Đã xuất</th>
+                    <th class="text-end">Đang giữ</th>
+                    <th class="text-end">Đã phục vụ</th>
+                    <th class="text-end">Còn nhận</th>
+                    <th>Nhận gọi món</th>
+                    <th class="text-end">Thao tác bếp</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="filteredFoods.length === 0">
-                    <td colspan="6" class="text-center py-4 text-muted">
+                    <td colspan="7" class="text-center py-4 text-muted">
                       Không tìm thấy món ăn nào phù hợp với tìm kiếm.
                     </td>
                   </tr>
-                  <tr v-for="food in filteredFoods" :key="food.foodId">
-                    <td class="text-muted">#{{ food.foodId }}</td>
-                    <td>
-                      <div class="fw-bold text-slate-900 fs-6">{{ food.foodName }}</div>
-                      <small class="text-muted">{{ food.description || 'Chưa có mô tả' }}</small>
-                    </td>
-                    <td>
-                      <span class="badge bg-slate-100 text-slate-700 border">{{ food.categoryName }}</span>
-                    </td>
-                    <td class="font-monospace text-slate-900 fw-semibold">
-                      {{ formatCurrency(food.minPrice) }}
-                    </td>
-                    <td class="text-center">
-                      <span v-if="food.isActive" class="badge bg-emerald-subtle text-emerald border border-emerald-subtle px-2 py-1 rounded-pill">
-                        🟢 Đang phục vụ
-                      </span>
-                      <span v-else class="badge bg-rose-subtle text-rose border border-rose-subtle px-2 py-1 rounded-pill">
-                        🔴 Đã báo hết món
-                      </span>
-                    </td>
-                    <td class="text-end">
-                      <button
-                        v-if="food.isActive"
-                        class="btn btn-outline-danger btn-sm fw-bold px-3 rounded-pill"
-                        @click="toggleFoodSoldOut(food.foodId, false)"
-                        :disabled="togglingFoodId === food.foodId"
-                      >
-                        ⚠️ Báo Hết
-                      </button>
-                      <button
-                        v-else
-                        class="btn btn-emerald btn-sm fw-bold px-3 rounded-pill text-white"
-                        @click="toggleFoodSoldOut(food.foodId, true)"
-                        :disabled="togglingFoodId === food.foodId"
-                      >
-                        ✅ Mở Lại Món
-                      </button>
-                    </td>
-                  </tr>
+                  <template v-for="food in filteredFoods" :key="food.foodId">
+                    <tr class="kitchen-food-heading"><td colspan="7">
+                      <div class="kitchen-food-summary"><div><strong>{{ food.foodName }}</strong><small>{{ food.categoryName }}</small></div>
+                        <button class="btn btn-sm btn-outline-secondary" :disabled="togglingFoodId === food.foodId"
+                          @click="toggleFoodSoldOut(food.foodId, food.isSoldOut)">{{ food.isSoldOut ? 'Mở lại cả món' : 'Báo hết cả món' }}</button>
+                      </div>
+                    </td></tr>
+                    <tr v-for="size in food.variants" :key="size.variantId" class="kitchen-size-row" :data-variant-id="size.variantId">
+                      <td>{{ size.variantName }}</td>
+                      <td class="text-end quota-number" data-label="Đã xuất">{{ size.plan ? size.plan.issuedPortions : '—' }}</td>
+                      <td class="text-end quota-number quota-reserved" data-label="Đang giữ">{{ size.plan ? size.plan.reservedPortions : '—' }}</td>
+                      <td class="text-end quota-number" data-label="Đã phục vụ">{{ size.plan ? size.plan.servedPortions : '—' }}</td>
+                      <td class="text-end quota-number" data-label="Còn nhận">{{ size.plan ? size.plan.remainingPortions : '—' }}</td>
+                      <td><span class="kitchen-availability" :class="size.canOrder === false ? 'unavailable' : 'available'">{{ size.availabilityText || (size.isSoldOut ? 'Bếp tạm hết món' : 'Đang phục vụ') }}</span></td>
+                      <td class="text-end"><button class="kitchen-size-control" :class="{ unavailable: size.isSoldOut }"
+                        :disabled="togglingFoodId === food.foodId" :aria-label="`${size.isSoldOut ? 'Mở lại' : 'Báo hết'} ${food.foodName} ${size.variantName}`"
+                        @click="toggleFoodSoldOut(food.foodId, size.isSoldOut, size.variantId)">
+                        <Check v-if="size.isSoldOut" :size="16" aria-hidden="true" /><Ban v-else :size="16" aria-hidden="true" />{{ size.isSoldOut ? 'Mở lại' : 'Báo hết' }}
+                      </button></td>
+                    </tr>
+                  </template>
                 </tbody>
               </table>
             </div>
@@ -869,19 +856,83 @@
         </div>
       </div>
     </main>
+
+    <!-- MODAL: HỒ SƠ ĐẦU BẾP & THÔNG TIN CA LÀM -->
+    <div v-if="showChefShiftModal" class="modal-backdrop-custom" @click.self="showChefShiftModal = false">
+      <div class="card p-4 dialog shadow-lg border-0 rounded-4 bg-white" style="max-width: 480px;">
+        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
+          <div class="d-flex align-items-center gap-2">
+            <div class="p-2 rounded-circle bg-warning bg-opacity-10 text-warning">
+              <ChefHat :size="24" />
+            </div>
+            <div>
+              <h5 class="fw-bold mb-0 text-dark">Hồ Sơ &amp; Ca Làm Bếp</h5>
+              <small class="text-muted">Nhà Hàng Hương Sen · Bộ Phận Bếp</small>
+            </div>
+          </div>
+          <button type="button" class="btn-close" @click="showChefShiftModal = false"></button>
+        </div>
+
+        <div class="text-center py-2 mb-3">
+          <div class="chef-avatar-circle mx-auto mb-2">
+            👨‍🍳
+          </div>
+          <h5 class="fw-bold text-dark mb-1">{{ userName }}</h5>
+          <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-semibold">
+            Đầu Bếp / Bếp Trưởng Điều Hành
+          </span>
+        </div>
+
+        <div class="card bg-slate-50 border rounded-3 p-3 mb-3">
+          <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+            <span class="text-muted small">Trạng thái ca:</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold">
+              🟢 Đang trong ca làm việc
+            </span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+            <span class="text-muted small">Thời gian trực ca:</span>
+            <span class="fw-bold text-dark small font-monospace">{{ currentTime }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center py-1">
+            <span class="text-muted small">Phân công quầy:</span>
+            <span class="fw-semibold text-primary small">3 Quầy Bếp Toàn Bộ</span>
+          </div>
+        </div>
+
+        <div class="d-grid gap-2">
+          <router-link to="/staff" class="btn btn-outline-primary py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-2">
+            <Users :size="18" /> Sang Trang Phục Vụ (Staff POS)
+          </router-link>
+          <router-link to="/customer/menu" target="_blank" class="btn btn-outline-success py-2 fw-semibold rounded-3 d-flex align-items-center justify-content-center gap-2">
+            <BookOpen :size="18" /> Xem Thực Đơn &amp; Trang Người Dùng
+          </router-link>
+          <button type="button" class="btn btn-outline-danger py-2 fw-bold rounded-3 mt-1" @click="handleLogout">
+            <LogOut :size="18" class="me-1" /> Đăng Xuất &amp; Rời Ca Làm
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
+  <OperationalReasonDialog :dialog="reasonDialog" />
 </template>
 
 <script setup>
+import { Ban, Check, ChefHat, LogOut, RefreshCw, Settings, Users, Utensils, Volume2, VolumeX, BookOpen } from '@lucide/vue'
+import OperationalReasonDialog from '@/components/OperationalReasonDialog.vue'
+import { useReasonDialog } from '@/composables/useReasonDialog'
+const { reasonDialog, askReason } = useReasonDialog()
+import { clearSession } from '@/auth/session'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import signalRService from '@/services/signalr'
 
 const router = useRouter()
+const showChefShiftModal = ref(false)
 
 // API Base URL
-const API_BASE = 'http://localhost:5079/api/chef'
+const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/chef`
 
 // Helper config axios with JWT token
 const getAuthHeaders = () => {
@@ -1408,13 +1459,15 @@ const completeAllOrderItems = async (orderId) => {
 }
 
 // Toggle Sold Out
-const toggleFoodSoldOut = async (foodId, isActive) => {
+const toggleFoodSoldOut = async (foodId, isActive, variantId = null) => {
+  const reason = isActive ? null : await askReason('Báo hết món', variantId ? 'Áp dụng cho size đã chọn.' : 'Áp dụng cho tất cả size của món.', 'Báo hết');
+  if (!isActive && !reason) return;
   togglingFoodId.value = foodId
   errorMsg.value = ''
   try {
     const res = await axios.patch(
       `${API_BASE}/foods/${foodId}/toggle-sold-out`,
-      { isActive },
+      { isSoldOut: !isActive, variantId, reason },
       { headers: getAuthHeaders() }
     )
     successMsg.value = res.data.message || 'Đã cập nhật tình trạng món ăn.'
@@ -1429,6 +1482,19 @@ const toggleFoodSoldOut = async (foodId, isActive) => {
   } finally {
     togglingFoodId.value = null
   }
+}
+
+const cancelKitchenItem = async (item) => {
+  const reason = await askReason('Không thể phục vụ món', `${item.foodName || item.foodNameSnapshot || ''} · ${item.variantName || item.variantSnapshot || ''}`, 'Hủy món');
+  if (!reason) return;
+  updatingItemId.value = item.orderItemId;
+  try {
+    const res = await axios.post(`${API_BASE}/orders/${item.orderId}/items/${item.orderItemId}/cancel`, { reason }, { headers: getAuthHeaders() });
+    successMsg.value = res.data.message;
+    await Promise.all([fetchKitchenOrders(), fetchKitchenQueue(), fetchMetrics()]);
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'Không thể hủy món.';
+  } finally { updatingItemId.value = null; }
 }
 
 // Helper methods for styling and badges (LIGHT THEME)
@@ -1477,7 +1543,7 @@ const getStatusLabel = (status) => {
 }
 
 const handleLogout = () => {
-  localStorage.clear()
+  clearSession()
   router.push('/login')
 }
 
@@ -1497,6 +1563,8 @@ onMounted(() => {
   signalRService.on('KitchenUpdated', async () => {
     await fetchKitchenDataSilently()
   })
+  signalRService.on('FoodAvailabilityChanged', fetchFoods)
+  signalRService.on('PortionAvailabilityChanged', fetchFoods)
   signalRService.on('StaffOrderUpdated', async () => {
     await fetchKitchenDataSilently()
   })
@@ -1511,11 +1579,47 @@ onUnmounted(() => {
   if (clockInterval) clearInterval(clockInterval)
   if (refreshInterval) clearInterval(refreshInterval)
   signalRService.off('KitchenUpdated')
+  signalRService.off('FoodAvailabilityChanged', fetchFoods)
+  signalRService.off('PortionAvailabilityChanged', fetchFoods)
   signalRService.off('StaffOrderUpdated')
 })
 </script>
 
 <style scoped>
+.kitchen-page-title { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0; }
+.kitchen-availability-section { border-block: 1px solid #dce4e1; }
+.kitchen-availability-tools { display: flex; gap: 8px; min-width: 0; }
+.kitchen-availability-tools input { width: 260px; max-width: 100%; min-width: 0; min-height: 44px; border-radius: 6px; }
+.kitchen-availability-tools button { flex: 0 0 44px; display: grid; place-items: center; min-height: 44px; border-radius: 6px; }
+@media (max-width: 690px) {
+  .kitchen-availability-tools { width: 100%; }.kitchen-availability-tools input { flex: 1; }
+  .kitchen-availability-table { overflow: visible; }.kitchen-availability-table table, .kitchen-availability-table tbody { display: block; width: 100%; }
+  .kitchen-availability-table thead { display: none; }.kitchen-food-heading { display: block; }.kitchen-food-heading td { display: block; }
+  .kitchen-food-summary { flex-wrap: wrap; }.kitchen-food-summary > div { flex: 1 1 150px; }.kitchen-food-summary button { min-height: 44px !important; }
+  .kitchen-availability-table .kitchen-size-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 8px; padding: 14px 12px; border-bottom: 1px solid #dce4e1; }
+  .kitchen-availability-table .kitchen-size-row td { padding: 0; border: 0; min-height: 0; text-align: left !important; }
+  .kitchen-size-row td:first-child { grid-column: 1 / -1; font-weight: 600; font-size: 14px; }
+  .kitchen-size-row td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; color: #61737a; font-size: 11px; font-weight: 400; }
+  .kitchen-size-row td:nth-child(6) { grid-column: span 2; align-self: center; }.kitchen-size-row td:last-child { grid-column: span 2; justify-self: end; }
+}
+.kitchen-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.kitchen-view-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; border: 1px solid #dce4e1; border-radius: 6px; background: #f4f7f6; }
+.kitchen-controls .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border-radius: 6px !important; box-shadow: none !important; }
+.kitchen-view-tabs .btn { font-size: 13px; }
+.kitchen-view-tabs .btn-rose, .kitchen-view-tabs .btn-emerald { color: #176951 !important; background: #fff !important; border-color: #c8d8d0 !important; }
+.chef-kds :deep(button:focus-visible), .chef-kds :deep(a:focus-visible) { outline: 2px solid #176951; outline-offset: 3px; }
+.chef-kds .table-responsive { border-radius: 0; }
+@media (max-width: 690px) { .kitchen-controls { width: 100%; }.kitchen-view-tabs { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }.kitchen-view-tabs .btn { padding-inline: 8px !important; }.chef-kds .navbar .container-fluid { padding-inline: 0; } }
+.kitchen-food-heading { background: #f3f6f7; }.kitchen-food-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; }
+.kitchen-food-summary strong, .kitchen-food-summary small { display: block; }.kitchen-food-summary strong { font-size: 14px; font-weight: 600; }.kitchen-food-summary small { margin-top: 4px; font-size: 12px; color: #607581; }
+.kitchen-size-row td { min-height: 56px; padding-top: 10px; padding-bottom: 10px; font-size: 13px; }
+.quota-number { font-variant-numeric: tabular-nums; font-weight: 600; }.quota-reserved { color: #9a6408; }
+.kitchen-availability { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
+.kitchen-availability.available { background: #e3f5eb; color: #126341; }.kitchen-availability.unavailable { background: #fff0de; color: #8e4e0c; }
+.kitchen-food-summary .btn { min-height: 40px; border-radius: 6px; font-size: 12px; }
+.kitchen-size-list { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 8px; }
+.kitchen-size-control { display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 6px 10px; border: 1px solid #bdcfc8; border-radius: 6px; background: #fff; color: #203b34; font-size: 13px; text-align: left; }
+.kitchen-size-control span { color: #08754c; font-weight: 600; }.kitchen-size-control.unavailable { border-color: #e7b5b9; }.kitchen-size-control.unavailable span { color: #b42332; }
 /* Base Light Theme */
 .bg-light-app {
   background-color: #f1f5f9 !important;
@@ -1528,8 +1632,9 @@ onUnmounted(() => {
 .brand-icon {
   width: 42px;
   height: 42px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  border-radius: 6px;
+  background: #e3f3ee;
+  color: #176951;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1545,17 +1650,17 @@ onUnmounted(() => {
 .bg-slate-100 { background-color: #f1f5f9 !important; }
 .bg-slate-200 { background-color: #e2e8f0 !important; }
 
-.text-indigo { color: #4f46e5 !important; }
-.bg-indigo { background-color: #4f46e5 !important; }
-.bg-indigo-subtle { background-color: #eef2ff !important; }
-.border-indigo-subtle { border-color: #c7d2fe !important; }
+.text-indigo { color: #176951 !important; }
+.bg-indigo { background-color: #176951 !important; }
+.bg-indigo-subtle { background-color: #edf6f2 !important; }
+.border-indigo-subtle { border-color: #bdd9cd !important; }
 .btn-indigo {
-  background-color: #4f46e5 !important;
+  background-color: #176951 !important;
   color: #ffffff !important;
-  border: 1px solid #4338ca !important;
+  border: 1px solid #176951 !important;
 }
 .btn-indigo:hover {
-  background-color: #4338ca !important;
+  background-color: #11563f !important;
 }
 
 .text-emerald { color: #059669 !important; }
@@ -1724,6 +1829,30 @@ onUnmounted(() => {
   0% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
   70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
   100% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 1rem;
+}
+.chef-avatar-circle {
+  width: 68px;
+  height: 68px;
+  background: #fef3c7;
+  border: 3px solid #f59e0b;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
 }
 </style>
 

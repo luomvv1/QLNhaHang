@@ -21,23 +21,23 @@
               <div class="d-flex gap-3 align-items-start">
                 <div class="dola-contact-icon">{{ info.icon }}</div>
                 <div>
-                  <h5 class="text-white fw-bold mb-1 fs-6">{{ info.title }}</h5>
-                  <div class="text-body-dola small" v-html="info.content"></div>
+                  <h5 class="fw-bold mb-1 fs-6" style="color: #1F1A17;">{{ info.title }}</h5>
+                  <div class="small" style="color: #574A40;" v-html="info.content"></div>
                 </div>
               </div>
             </div>
 
             <!-- Social channels -->
             <div class="dola-card p-4">
-              <h5 class="text-gold fw-bold mb-3 fs-6">🌐 Kênh Truyền Thông Chính Thức</h5>
+              <h5 class="fw-bold mb-3 fs-6" style="color: var(--dola-wine);">🌐 Kênh Truyền Thông Chính Thức</h5>
               <div class="d-flex gap-2 flex-wrap">
-                <a href="#" class="btn btn-outline-warning btn-sm rounded-pill px-3">
+                <a href="#" class="social-pill">
                   📘 Facebook Fanpage
                 </a>
-                <a href="#" class="btn btn-outline-warning btn-sm rounded-pill px-3">
+                <a href="#" class="social-pill">
                   📸 Instagram Food
                 </a>
-                <a href="#" class="btn btn-outline-warning btn-sm rounded-pill px-3">
+                <a href="#" class="social-pill">
                   🎵 Kênh TikTok
                 </a>
               </div>
@@ -52,8 +52,8 @@
 
             <div v-if="submitted" class="text-center py-5">
               <div class="fs-1 mb-3">💌</div>
-              <h3 class="dola-font-title text-gold fs-1 mb-2">Cảm Ơn Quý Khách!</h3>
-              <p class="text-body-dola mb-4">
+              <h3 class="dola-font-title fs-1 mb-2" style="color: var(--dola-wine);">Cảm Ơn Quý Khách!</h3>
+              <p class="mb-4" style="color: #574A40;">
                 Lời nhắn của bạn đã được gửi đến ban quản lý nhà hàng Hương Sen. Chúng tôi sẽ phản hồi qua điện thoại hoặc email trong thời gian sớm nhất.
               </p>
               <button class="dola-btn-outline" @click="submitted = false">
@@ -62,8 +62,8 @@
             </div>
 
             <form v-else @submit.prevent="handleSubmit">
-              <h3 class="dola-font-title text-gold fs-2 mb-2">Gửi Tin Nhắn Trực Tiếp</h3>
-              <p class="text-body-dola small mb-4">
+              <h3 class="dola-font-title fs-2 mb-2" style="color: var(--dola-wine);">Gửi Tin Nhắn Trực Tiếp</h3>
+              <p class="small mb-4" style="color: #6E6157;">
                 Quý khách có thể yêu cầu đặt tiệc riêng, đóng góp ý kiến về chất lượng phục vụ hoặc hỏi đáp thực đơn.
               </p>
 
@@ -126,12 +126,12 @@ const contactList = [
   {
     icon: '📍',
     title: 'Địa Chỉ Nhà Hàng',
-    content: '123 Đường Ẩm Thực, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh<br><span class="text-white-50">(Có bãi đỗ xe ô tô và xe máy rộng rãi)</span>'
+    content: '123 Đường Ẩm Thực, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh<br><span style="color: #8C7F75;">(Có bãi đỗ xe ô tô và xe máy rộng rãi)</span>'
   },
   {
     icon: '📞',
     title: 'Hotline & Tổng Đài CSKH',
-    content: '<strong class="text-gold">1900 6868</strong> – Hỗ trợ đặt bàn 24/7<br>Di động / Zalo quản lý: <strong>0933 11 22 33</strong>'
+    content: '<strong style="color: var(--dola-wine);">1900 6868</strong> – Hỗ trợ đặt bàn 24/7<br>Di động / Zalo quản lý: <strong style="color: #1F1A17;">0933 11 22 33</strong>'
   },
   {
     icon: '✉️',
@@ -141,7 +141,7 @@ const contactList = [
   {
     icon: '🕒',
     title: 'Khung Giờ Đón Khách',
-    content: 'Ca trưa: <strong>10:00 – 14:00</strong><br>Ca tối: <strong>17:00 – 22:30</strong> (Tất cả các ngày trong tuần)'
+    content: 'Ca trưa: <strong style="color: #1F1A17;">10:00 – 14:00</strong><br>Ca tối: <strong style="color: #1F1A17;">17:00 – 22:30</strong> (Tất cả các ngày trong tuần)'
   }
 ];
 
@@ -163,15 +163,40 @@ function handleSubmit() {
 }
 
 .dola-contact-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(214, 156, 82, 0.15);
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--dola-surface-alt);
   border: 1px solid var(--dola-hairline);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.4rem;
   flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(44, 30, 20, 0.04);
+}
+
+.social-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  background: #FFFFFF;
+  color: #574A40;
+  border: 1px solid var(--dola-hairline);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+}
+
+.social-pill:hover {
+  background: var(--dola-wine);
+  color: #FFFFFF;
+  border-color: var(--dola-wine);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(122, 28, 40, 0.25);
 }
 </style>

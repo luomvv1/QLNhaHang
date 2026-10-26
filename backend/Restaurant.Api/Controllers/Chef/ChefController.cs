@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.SignalR;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
 using Restaurant.Api.Hubs;
+using Restaurant.Api.Services;
+using System.Text.Json;
 using System.Data;
 using System.Security.Claims;
 
@@ -22,6 +24,9 @@ public class UpdateItemStatusRequest
 public class ToggleSoldOutRequest
 {
     public bool? IsActive { get; set; }
+    public bool? IsSoldOut { get; set; }
+    public int? VariantId { get; set; }
+    public string? Reason { get; set; }
 }
 
 [Route("api/chef")]
@@ -145,6 +150,7 @@ public class ChefController : ControllerBase
                     i.Quantity,
                     i.Note,
                     i.ItemStatus,
+                    CanCancel = OrderCancellationWorkflow.CanCancelItem(i),
                     i.CreatedAt,
                     i.ConfirmedAt,
                     i.ReadyAt,
@@ -269,6 +275,7 @@ public class ChefController : ControllerBase
                 i.Quantity,
                 i.Note,
                 i.ItemStatus,
+                CanCancel = OrderCancellationWorkflow.CanCancelItem(i),
                 CategoryId = i.Food.CategoryId,
                 CategoryName = i.Food.Category?.CategoryName ?? "Bếp",
                 i.CreatedAt,
@@ -291,6 +298,7 @@ public class ChefController : ControllerBase
     // 3. CẬP NHẬT TIẾN ĐỘ CHẾ BIẾN CỦA MỘT MÓN ĂN (1-touch update)
     // ==============================================================
     [HttpPatch("items/{orderItemId}/status")]
+    [Authorize(Roles = "chef,manager,admin")]
     public async Task<IActionResult> UpdateItemStatus(int orderItemId, [FromBody] UpdateItemStatusRequest request)
     {
         var validStatuses = new[] { "confirmed", "cooking", "ready", "served" };
@@ -301,7 +309,10 @@ public class ChefController : ControllerBase
             return BadRequest(new { message = $"Trạng thái '{request.Status}' không hợp lệ. Chỉ chấp nhận: confirmed, cooking, ready, served." });
         }
 
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await using var transaction = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable) : null;
+        if (!await PortionAvailabilityService.TryLockAsync(_dbContext))
+            return Conflict(new { message = "Đang cập nhật suất ăn. Vui lòng thử lại." });
 
         var item = await _dbContext.OrderItems
             .Include(i => i.Order)
@@ -329,6 +340,7 @@ public class ChefController : ControllerBase
         var currentChefId = GetCurrentUserId();
         var previousStatus = item.ItemStatus;
 
+        if (targetStatus == "served") await ServedPortionRecorder.RecordAsync(_dbContext, new[] { item }, now);
         item.ItemStatus = targetStatus;
         item.UpdatedAt = now;
 
@@ -366,68 +378,17 @@ public class ChefController : ControllerBase
                 item.Order.UpdatedAt = now;
             }
 
-            // Đồng bộ SoldPortions vào DailyPortionControls (chỉ khi chuyển từ trạng thái khác sang served)
-            if (previousStatus != "served")
-            {
-                var controlDate = now.AddHours(7).Date;
-                var portion = await _dbContext.DailyPortionControls
-                    .FirstOrDefaultAsync(p => p.ControlDate == controlDate &&
-                                              p.FoodId == item.FoodId &&
-                                              p.VariantId == item.VariantId);
-
-                if (portion != null)
-                {
-                    portion.SoldPortions += item.Quantity;
-                    portion.UpdatedAt = now;
-                }
-                else
-                {
-                    portion = new DailyPortionControl
-                    {
-                        ControlDate = controlDate,
-                        FoodId = item.FoodId,
-                        VariantId = item.VariantId,
-                        PlannedPortions = 0,
-                        CarryOverPortions = 0,
-                        CookedPortions = 0,
-                        SoldPortions = item.Quantity,
-                        DisposedPortions = 0,
-                        NextCarryOverPortions = 0,
-                        Status = "in_service",
-                        Note = "Tự động ghi nhận từ đơn gọi món",
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    };
-                    _dbContext.DailyPortionControls.Add(portion);
-                }
-            }
-        }
-        else if (previousStatus == "served" && targetStatus != "served")
-        {
-            // Hoàn lại SoldPortions nếu chuyển ngược từ served sang trạng thái khác
-            // UpdatedAt vẫn là thời điểm chuyển sang served trước khi đổi trạng thái,
-            // giúp hoàn lại đúng ngày bán ngay cả khi undo qua ngày hôm sau.
-            var controlDate = item.UpdatedAt.AddHours(7).Date;
-            var portion = await _dbContext.DailyPortionControls
-                .FirstOrDefaultAsync(p => p.ControlDate == controlDate &&
-                                          p.FoodId == item.FoodId &&
-                                          p.VariantId == item.VariantId);
-
-            if (portion != null)
-            {
-                portion.SoldPortions = Math.Max(0, portion.SoldPortions - item.Quantity);
-                portion.UpdatedAt = now;
-            }
         }
 
         await _dbContext.SaveChangesAsync();
-        await transaction.CommitAsync();
+        if (transaction != null) await transaction.CommitAsync();
 
         // PHÁT TÍN HIỆU REALTIME QUA SIGNALR NGAY LẬP TỨC
         try
         {
-            await _hubContext.Clients.All.SendAsync("KitchenUpdated", new { orderItemId, orderId = item.OrderId, status = targetStatus });
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated", new { orderItemId, orderId = item.OrderId, status = targetStatus });
+            await _hubContext.PublishAsync(_dbContext, "KitchenUpdated", new { orderItemId, orderId = item.OrderId, status = targetStatus });
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated", new { orderItemId, orderId = item.OrderId, status = targetStatus });
+            await _hubContext.PublishAsync(_dbContext, "PortionAvailabilityChanged", new { orderItemId, eventType = "progress" });
         }
         catch { }
 
@@ -450,8 +411,11 @@ public class ChefController : ControllerBase
     // 4. NẤU XONG TOÀN BỘ MÓN CỦA MỘT BÀN (Ready all items)
     // ==============================================================
     [HttpPatch("orders/{orderId}/ready-all")]
+    [Authorize(Roles = "chef,manager,admin")]
     public async Task<IActionResult> ReadyAllItems(int orderId, [FromQuery] int? categoryId = null)
     {
+        await using var transaction = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable) : null;
         var order = await _dbContext.Orders
             .Include(o => o.OrderItems)
                 .ThenInclude(i => i.Food)
@@ -459,6 +423,8 @@ public class ChefController : ControllerBase
 
         if (order == null)
             return NotFound(new { message = "Không tìm thấy đơn hàng này." });
+        if (!OrderCancellationWorkflow.IsOpen(order.OrderStatus))
+            return Conflict(new { message = "Đơn đã đóng; không thể thay đổi món." });
 
         var now = DateTime.UtcNow;
         var chefId = GetCurrentUserId();
@@ -488,13 +454,30 @@ public class ChefController : ControllerBase
 
         order.UpdatedAt = now;
 
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            UserId = chefId,
+            ActionName = "kitchen_ready_all",
+            EntityName = "Order",
+            EntityId = orderId.ToString(),
+            NewData = JsonSerializer.Serialize(new
+            {
+                orderId,
+                itemsCount = pendingItems.Count,
+                items = pendingItems.Select(p => p.FoodNameSnapshot).ToList(),
+                reason = "Bếp trưởng xác nhận hoàn tất chế biến toàn bộ món của đơn"
+            }),
+            CreatedAt = now
+        });
+
         await _dbContext.SaveChangesAsync();
+        if (transaction != null) await transaction.CommitAsync();
 
         // PHÁT TÍN HIỆU REALTIME QUA SIGNALR
         try
         {
-            await _hubContext.Clients.All.SendAsync("KitchenUpdated", new { orderId, eventType = "ready_all" });
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated", new { orderId, eventType = "ready_all" });
+            await _hubContext.PublishAsync(_dbContext, "KitchenUpdated", new { orderId, eventType = "ready_all" });
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated", new { orderId, eventType = "ready_all" });
         }
         catch { }
 
@@ -508,9 +491,13 @@ public class ChefController : ControllerBase
     // 4b. HOÀN TÁC TRẠNG THÁI MÓN (Undo Item Status)
     // ==============================================================
     [HttpPatch("items/{orderItemId}/undo")]
+    [Authorize(Roles = "chef,manager,admin")]
     public async Task<IActionResult> UndoItemStatus(int orderItemId)
     {
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await using var transaction = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable) : null;
+        if (!await PortionAvailabilityService.TryLockAsync(_dbContext))
+            return Conflict(new { message = "Đang cập nhật suất ăn. Vui lòng thử lại." });
 
         var item = await _dbContext.OrderItems
             .Include(i => i.Order)
@@ -518,11 +505,13 @@ public class ChefController : ControllerBase
 
         if (item == null)
             return NotFound(new { message = "Không tìm thấy món ăn này trong hệ thống." });
+        if (!OrderCancellationWorkflow.IsOpen(item.Order.OrderStatus) || item.ItemStatus is not ("cooking" or "ready" or "served"))
+            return Conflict(new { message = "Chỉ được hoàn tác món đã bắt đầu chế biến trong đơn còn mở. Món đã hủy không thể khôi phục." });
 
         var now = DateTime.UtcNow;
         string previousStatus = item.ItemStatus;
         string targetStatus = "confirmed";
-        var servedControlDate = item.UpdatedAt.AddHours(7).Date;
+        if (previousStatus == "served") await ServedPortionRecorder.UndoAsync(_dbContext, item, now);
 
         if (item.ItemStatus == "served")
         {
@@ -541,34 +530,41 @@ public class ChefController : ControllerBase
         item.ItemStatus = targetStatus;
         item.UpdatedAt = now;
 
-        if (previousStatus == "served")
-        {
-            var portion = await _dbContext.DailyPortionControls
-                .FirstOrDefaultAsync(p => p.ControlDate == servedControlDate &&
-                                          p.FoodId == item.FoodId &&
-                                          p.VariantId == item.VariantId);
-
-            if (portion != null)
-            {
-                portion.SoldPortions = Math.Max(0, portion.SoldPortions - item.Quantity);
-                portion.UpdatedAt = now;
-            }
-        }
-
         if (item.Order.OrderStatus == "serving" && targetStatus != "served")
         {
             item.Order.OrderStatus = "preparing";
             item.Order.UpdatedAt = now;
         }
 
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            ActionName = "kitchen_item_undo",
+            EntityName = "OrderItem",
+            EntityId = orderItemId.ToString(),
+            OldData = JsonSerializer.Serialize(new { status = previousStatus }),
+            NewData = JsonSerializer.Serialize(new
+            {
+                orderId = item.OrderId,
+                orderItemId,
+                foodName = item.FoodNameSnapshot,
+                variantName = item.VariantSnapshot,
+                previousStatus,
+                targetStatus,
+                reason = "Bếp hoàn tác trạng thái để nấu lại hoặc điều chỉnh món"
+            }),
+            CreatedAt = now
+        });
+
         await _dbContext.SaveChangesAsync();
-        await transaction.CommitAsync();
+        if (transaction != null) await transaction.CommitAsync();
 
         // PHÁT TÍN HIỆU REALTIME QUA SIGNALR
         try
         {
-            await _hubContext.Clients.All.SendAsync("KitchenUpdated", new { orderItemId, orderId = item.OrderId, status = targetStatus, eventType = "undo" });
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated", new { orderItemId, orderId = item.OrderId, status = targetStatus, eventType = "undo" });
+            await _hubContext.PublishAsync(_dbContext, "KitchenUpdated", new { orderItemId, orderId = item.OrderId, status = targetStatus, eventType = "undo" });
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated", new { orderItemId, orderId = item.OrderId, status = targetStatus, eventType = "undo" });
+            await _hubContext.PublishAsync(_dbContext, "PortionAvailabilityChanged", new { orderItemId, eventType = "undo_served" });
         }
         catch { }
 
@@ -640,6 +636,7 @@ public class ChefController : ControllerBase
         var query = _dbContext.Foods
             .Include(f => f.Category)
             .Include(f => f.FoodVariants)
+            .Where(f => f.IsActive && (f.FoodStatus == "available" || f.FoodStatus == "sold_out"))
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -652,10 +649,20 @@ public class ChefController : ControllerBase
             query = query.Where(f => f.CategoryId == categoryId.Value);
         }
 
-        var foods = await query
+        var records = await query
             .OrderBy(f => f.Category.SortOrder)
             .ThenBy(f => f.FoodName)
-            .Select(f => new
+            .ToListAsync();
+        var availability = await PortionAvailabilityService.LoadAsync(_dbContext, PortionAvailabilityService.Today);
+        var foods = records.Select(f =>
+        {
+            var variants = f.FoodVariants.Where(v => v.IsActive).OrderBy(v => v.SortOrder).Select(v =>
+            {
+                var state = availability.For(f, v);
+                return new { v.VariantId, v.VariantName, v.Price, IsSoldOut = v.IsSoldOut || f.FoodStatus == "sold_out",
+                    state.CanOrder, AvailabilityStatus = state.Status, AvailabilityText = state.Label, state.Plan };
+            }).ToList();
+            return new
             {
                 f.FoodId,
                 f.CategoryId,
@@ -663,10 +670,14 @@ public class ChefController : ControllerBase
                 f.FoodName,
                 f.ImageUrl,
                 f.IsActive,
+                f.FoodStatus,
+                IsSoldOut = f.FoodStatus == "sold_out" || !f.FoodVariants.Any(v => v.IsActive && !v.IsSoldOut),
+                Variants = variants,
+                CanOrder = variants.Any(v => v.CanOrder),
                 VariantCount = f.FoodVariants.Count,
                 MinPrice = f.FoodVariants.Any() ? f.FoodVariants.Min(v => v.Price) : 0
-            })
-            .ToListAsync();
+            };
+        }).ToList();
 
         return Ok(foods);
     }
@@ -675,40 +686,98 @@ public class ChefController : ControllerBase
     // 6. BẬT / TẮT TRẠNG THÁI HẾT MÓN (Toggle Sold Out)
     // ==============================================================
     [HttpPatch("foods/{foodId}/toggle-sold-out")]
+    [Authorize(Roles = "chef,manager,admin")]
     public async Task<IActionResult> ToggleFoodSoldOut(int foodId, [FromBody] ToggleSoldOutRequest? request)
     {
-        var food = await _dbContext.Foods.FindAsync(foodId);
+        await using var transaction = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable) : null;
+        var food = await _dbContext.Foods.Include(f => f.FoodVariants).FirstOrDefaultAsync(f => f.FoodId == foodId);
         if (food == null)
             return NotFound(new { message = "Không tìm thấy món ăn này." });
-
-        if (request?.IsActive.HasValue == true)
+        if (!food.IsActive || food.FoodStatus is not ("available" or "sold_out"))
+            return Conflict(new { message = "Món đã ngừng kinh doanh. Hãy liên hệ quản trị danh mục." });
+        var variant = request?.VariantId is int id ? food.FoodVariants.FirstOrDefault(v => v.VariantId == id && v.IsActive) : null;
+        if (request?.VariantId != null && variant == null)
+            return BadRequest(new { message = "Size không thuộc món hoặc đã ngừng kinh doanh." });
+        var soldOut = request?.IsSoldOut ?? (request?.IsActive.HasValue == true ? !request.IsActive.Value :
+            variant != null ? !variant.IsSoldOut : food.FoodStatus != "sold_out");
+        var reason = request?.Reason?.Trim();
+        if (soldOut && (string.IsNullOrWhiteSpace(reason) || reason.Length < 3 || reason.Length > 500))
+            return BadRequest(new { message = "Vui lòng nhập lý do hết món từ 3 đến 500 ký tự." });
+        var now = DateTime.UtcNow;
+        // A catalog-level sold_out flag also blocks sizes created before per-size availability existed.
+        if (food.FoodStatus == "sold_out")
+            foreach (var size in food.FoodVariants.Where(v => v.IsActive)) size.IsSoldOut = true;
+        if (variant == null)
         {
-            food.IsActive = request.IsActive.Value;
+            foreach (var size in food.FoodVariants.Where(v => v.IsActive))
+            {
+                size.IsSoldOut = soldOut;
+                size.UpdatedAt = now;
+            }
         }
         else
         {
-            food.IsActive = !food.IsActive;
+            variant.IsSoldOut = soldOut;
+            variant.UpdatedAt = now;
         }
-
-        food.UpdatedAt = DateTime.UtcNow;
+        food.FoodStatus = food.FoodVariants.Any(v => v.IsActive && !v.IsSoldOut) ? "available" : "sold_out";
+        food.UpdatedAt = now;
+        _dbContext.AuditLogs.Add(new AuditLog { UserId = GetCurrentUserId(), ActionName = soldOut ? "food_sold_out" : "food_reopened",
+            EntityName = variant == null ? "Food" : "FoodVariant", EntityId = (variant?.VariantId ?? foodId).ToString(),
+            NewData = JsonSerializer.Serialize(new { foodId, foodName = food.FoodName, variantId = variant?.VariantId, variantName = variant?.VariantName, soldOut, reason }), CreatedAt = now });
         await _dbContext.SaveChangesAsync();
+        if (transaction != null) await transaction.CommitAsync();
 
         // PHÁT TÍN HIỆU REALTIME QUA SIGNALR
         try
         {
-            await _hubContext.Clients.All.SendAsync("KitchenUpdated", new { foodId, isActive = food.IsActive, eventType = "toggle_sold_out" });
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated", new { foodId, isActive = food.IsActive, eventType = "toggle_sold_out" });
+            var availability = await PortionAvailabilityService.LoadAsync(_dbContext, PortionAvailabilityService.Today);
+            var quotas = food.FoodVariants.Where(v => v.IsActive && (variant == null || v.VariantId == variant.VariantId))
+                .Select(v => availability.Resolve(foodId, v.VariantId)).Where(q => q?.IsManaged == true)
+                .Select(q => q!).DistinctBy(q => q.Key).ToList();
+            var payload = new { foodId, variantId = variant?.VariantId, foodName = food.FoodName,
+                variantName = variant?.VariantName, isSoldOut = soldOut, reason, eventType = "toggle_sold_out",
+                issuedPortions = quotas.Count > 0 ? (decimal?)quotas.Sum(q => q.IssuedPortions) : null,
+                servedPortions = quotas.Count > 0 ? (decimal?)quotas.Sum(q => q.ServedPortions) : null,
+                reservedPortions = quotas.Count > 0 ? (decimal?)quotas.Sum(q => q.ReservedPortions) : null };
+            await _hubContext.PublishAsync(_dbContext, "FoodAvailabilityChanged", payload);
+            await _hubContext.PublishAsync(_dbContext, "KitchenUpdated", payload);
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated", payload);
         }
         catch { }
 
-        string statusText = food.IsActive ? "Đang phục vụ (Còn hàng)" : "Tạm hết món (Sold out)";
+        string statusText = soldOut ? "Hết món" : "Đang phục vụ";
         return Ok(new
         {
             message = $"Món '{food.FoodName}' đã chuyển sang trạng thái: {statusText}.",
             foodId = food.FoodId,
             foodName = food.FoodName,
-            isActive = food.IsActive
+            isSoldOut = soldOut,
+            variantId = variant?.VariantId
         });
+    }
+
+    [HttpPost("orders/{orderId}/items/{itemId}/cancel")]
+    [Authorize(Roles = "chef,manager,admin")]
+    public async Task<IActionResult> CancelKitchenItem(int orderId, int itemId, [FromBody] CancelOrderRequest request)
+    {
+        var result = await OrderCancellationWorkflow.CancelAsync(_dbContext, orderId, itemId, request.Reason,
+            GetCurrentUserId(), fromKitchen: true);
+        if (result.StatusCode == 200)
+        {
+            try
+            {
+                var payload = new { orderId, itemId, reason = request.Reason, result.FoodName, result.VariantName,
+                    source = "kitchen", eventType = "item_cancelled" };
+                await _hubContext.PublishAsync(_dbContext, "OrderCancellationUpdated", payload);
+                await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated", payload);
+                await _hubContext.PublishAsync(_dbContext, "KitchenUpdated", payload);
+                await _hubContext.PublishAsync(_dbContext, "PortionAvailabilityChanged", new { orderId, itemId, eventType = "released" });
+            }
+            catch { }
+        }
+        return StatusCode(result.StatusCode, new { message = result.Message });
     }
 
     // ==============================================================
@@ -726,7 +795,8 @@ public class ChefController : ControllerBase
         int confirmedCount = activeOrderItems.Count(i => i.ItemStatus == "confirmed");
         int cookingCount = activeOrderItems.Count(i => i.ItemStatus == "cooking");
         int readyCount = activeOrderItems.Count(i => i.ItemStatus == "ready");
-        int soldOutFoodsCount = await _dbContext.Foods.CountAsync(f => !f.IsActive);
+        int soldOutFoodsCount = await _dbContext.Foods.CountAsync(f => f.IsActive &&
+            (f.FoodStatus == "sold_out" || f.FoodVariants.Any(v => v.IsActive && v.IsSoldOut)));
 
         return Ok(new
         {

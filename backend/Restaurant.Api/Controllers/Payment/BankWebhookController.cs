@@ -1,10 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Restaurant.Api.Security;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
 using Restaurant.Api.Hubs;
 using System.Text.RegularExpressions;
+using System.Data;
+using Restaurant.Api.Services;
 
 namespace Restaurant.Api.Controllers.Webhook;
 
@@ -16,10 +20,13 @@ public class BankWebhookPayload
     public string? TransactionDate { get; set; }
     public string? AccountNumber { get; set; }
     public string? SubAccount { get; set; }
-    public string? TransferType { get; set; } // "in"
+    public string? TransferType { get; set; } // "in" / "out"
     public decimal? TransferAmount { get; set; }
     public decimal? Amount { get; set; }
+    public decimal? Accumulated { get; set; }
+    public string? Code { get; set; }
     public string? Content { get; set; }
+    public string? TransactionContent { get; set; }
     public string? Description { get; set; }
     public string? Memo { get; set; }
     public string? ReferenceCode { get; set; }
@@ -30,6 +37,7 @@ public class BankWebhookPayload
 
 [ApiController]
 [Route("api/payment/bank-webhook")]
+[Authorize(AuthenticationSchemes = BankWebhookAuthenticationHandler.SchemeName)]
 public class BankWebhookController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
@@ -54,6 +62,13 @@ public class BankWebhookController : ControllerBase
             return BadRequest(new { success = false, message = "Payload webhook không hợp lệ." });
         }
 
+        // Bỏ qua giao dịch tiền ra (transferType != "in")
+        if (!string.IsNullOrWhiteSpace(payload.TransferType) &&
+            !payload.TransferType.Equals("in", StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(new { success = false, message = "Bỏ qua giao dịch tiền ra (transferType != in)." });
+        }
+
         // 1. Lấy số tiền chuyển khoản
         decimal transferAmount = payload.TransferAmount ?? payload.Amount ?? 0;
         if (transferAmount <= 0)
@@ -62,7 +77,12 @@ public class BankWebhookController : ControllerBase
         }
 
         // 2. Lấy nội dung chuyển khoản
-        string text = payload.Content ?? payload.Description ?? payload.Memo ?? string.Empty;
+        string text = payload.Content 
+            ?? payload.Description 
+            ?? payload.TransactionContent 
+            ?? payload.Code 
+            ?? payload.Memo 
+            ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             return BadRequest(new { success = false, message = "Nội dung chuyển khoản không được để trống." });
@@ -135,17 +155,32 @@ public class BankWebhookController : ControllerBase
         var now = DateTime.UtcNow;
 
         // 6. THỰC HIỆN CHECKOUT TỰ ĐỘNG TRONG DATABASE TRANSACTION
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
-            // Cập nhật trạng thái món ăn sang served
-            foreach (var item in activeItems)
+            // Refresh under the transaction so a concurrent served action is not counted twice.
+            await _dbContext.Entry(order).ReloadAsync();
+            if (order.OrderStatus == "paid")
+                return Ok(new { success = true, message = "Đơn hàng đã thanh toán." });
+            if (order.OrderStatus == "cancelled" || order.OrderStatus == "merged")
+                return Conflict(new { success = false, message = "Trạng thái đơn hàng đã thay đổi." });
+            foreach (var item in order.OrderItems) await _dbContext.Entry(item).ReloadAsync();
+            activeItems = order.OrderItems.Where(item => item.ItemStatus != "cancelled").ToList();
+            if (activeItems.Count == 0)
+                return Conflict(new { success = false, message = "Đơn hàng không còn món hợp lệ." });
+            subtotal = activeItems.Sum(item => item.UnitPrice * item.Quantity);
+            finalTotal = Math.Max(0, subtotal - order.DiscountAmount);
+            if (transferAmount < finalTotal)
+                return Conflict(new { success = false, message = "Giá trị đơn hàng đã thay đổi; cần đối chiếu lại thanh toán." });
+            // Tự động hoàn tất trạng thái phục vụ cho các món khi nhận tiền chuyển khoản thành công
+            var unservedItems = activeItems.Where(item => item.ItemStatus != "served").ToList();
+            if (unservedItems.Count > 0)
             {
-                if (item.ItemStatus != "served")
+                foreach (var itm in unservedItems)
                 {
-                    item.ItemStatus = "served";
-                    item.UpdatedAt = now;
+                    itm.ItemStatus = "served";
                 }
+                await ServedPortionRecorder.RecordAsync(_dbContext, unservedItems, now);
             }
 
             // Tạo mã hóa đơn duy nhất
@@ -280,7 +315,7 @@ public class BankWebhookController : ControllerBase
             // 7. PHÁT SÓNG SIGNALR WEBSOCKET NGAY LẬP TỨC (0s Delay)
             try
             {
-                await _hubContext.Clients.All.SendAsync("PaymentReceived", new
+                await _hubContext.PublishAsync(_dbContext, "PaymentReceived", new
                 {
                     orderId = order.OrderId,
                     tableDisplay,
@@ -291,8 +326,8 @@ public class BankWebhookController : ControllerBase
                     message = $"🎉 Bàn {tableDisplay} đã thanh toán VietQR thành công {transferAmount:N0} VNĐ!"
                 });
 
-                await _hubContext.Clients.All.SendAsync("StaffOrderUpdated");
-                await _hubContext.Clients.All.SendAsync("KitchenUpdated");
+                await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated");
+                await _hubContext.PublishAsync(_dbContext, "KitchenUpdated");
             }
             catch (Exception hubEx)
             {
@@ -333,8 +368,8 @@ public class BankWebhookController : ControllerBase
             return id2;
         }
 
-        // 3. Khớp bill 5, don 5, order 5
-        match = Regex.Match(text, @"(?i)(?:bill|don|order|donhang)[-_ ]?0*([1-9]\d*)");
+        // 3. Khớp bill 5, don 5, order 5, hd 5, hoadon 5, dh 5
+        match = Regex.Match(text, @"(?i)(?:bill|don|order|donhang|hoadon|hd|dh)[-_ ]?0*([1-9]\d*)");
         if (match.Success && int.TryParse(match.Groups[1].Value, out int id3))
         {
             return id3;

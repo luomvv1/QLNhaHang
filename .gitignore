@@ -38,3 +38,10 @@ Thumbs.db
 
 # Local agent tools
 .agent/
+
+# Tests and non-code scratch
+tests/
+fontend/mobile/test/
+.archify/
+docs/reports/
+docs/security/

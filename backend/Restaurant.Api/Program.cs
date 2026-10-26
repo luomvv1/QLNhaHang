@@ -1,9 +1,8 @@
-using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Restaurant.Api.Data;
 using Restaurant.Api.Hubs;
+using Restaurant.Api.Security;
+using Restaurant.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,13 +15,18 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+        options.JsonSerializerOptions.Converters.Add(new NullableUtcDateTimeJsonConverter());
     });
 builder.Services.AddHttpClient();
 builder.Services.AddSignalR();
+builder.Services.AddDataProtection();
 
 // Database setup
 builder.Services.AddDbContext<RestaurantDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("RestaurantDb")));
+
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 // CORS configured to support SignalR WebSockets and HTTP credentials
 builder.Services.AddCors(options =>
@@ -36,42 +40,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// JWT Authentication
-var jwtKey = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
-{
-    throw new InvalidOperationException("Configure Jwt:Key with a secret of at least 32 bytes before starting the API.");
-}
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "RestaurantApi",
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "RestaurantClients",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-        };
-
-        // Support JWT Token in query string for SignalR WebSocket connections if passed
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
-        };
-    });
+builder.Services.AddRestaurantSecurity(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -90,5 +59,43 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<RestaurantHub>("/hubs/restaurant");
+app.MapHub<RestaurantHub>("/hubs/restaurant", options => options.CloseOnAuthenticationExpiration = true);
 app.Run();
+
+public class UtcDateTimeJsonConverter : System.Text.Json.Serialization.JsonConverter<DateTime>
+{
+    public override DateTime Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
+    {
+        return DateTime.Parse(reader.GetString()!);
+    }
+
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, DateTime value, System.Text.Json.JsonSerializerOptions options)
+    {
+        var utc = value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            : value.ToUniversalTime();
+        writer.WriteStringValue(utc.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+    }
+}
+
+public class NullableUtcDateTimeJsonConverter : System.Text.Json.Serialization.JsonConverter<DateTime?>
+{
+    public override DateTime? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
+    {
+        var str = reader.GetString();
+        return string.IsNullOrEmpty(str) ? null : DateTime.Parse(str);
+    }
+
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, DateTime? value, System.Text.Json.JsonSerializerOptions options)
+    {
+        if (!value.HasValue)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+        var utc = value.Value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+            : value.Value.ToUniversalTime();
+        writer.WriteStringValue(utc.ToString("yyyy-MM-ddTHH:mm:ssZ"));
+    }
+}

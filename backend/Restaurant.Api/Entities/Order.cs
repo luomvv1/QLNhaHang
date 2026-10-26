@@ -31,6 +31,10 @@ public partial class Order
 
     public DateTime? CancelledAt { get; set; }
 
+    public int? CancelledBy { get; set; }
+
+    public string? CancellationReason { get; set; }
+
     public virtual User CreatedByNavigation { get; set; } = null!;
 
     public virtual Customer? Customer { get; set; }

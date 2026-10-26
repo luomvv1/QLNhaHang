@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Controllers.Webhook;
@@ -14,7 +15,7 @@ public class AdminPaymentSettingsModel
     public string AccountNo { get; set; } = "0333888999";
     public string AccountName { get; set; } = "NHA HANG HUONG SEN";
     public string Branch { get; set; } = "Hồ Chí Minh";
-    public string WebhookSecret { get; set; } = "SEN_SECRET_KEY_888";
+    public string WebhookSecret { get; set; } = string.Empty;
     public bool IsAutoConfirmEnabled { get; set; } = true;
     public string GatewayProvider { get; set; } = "SePay / VietQR Auto";
 }
@@ -28,6 +29,7 @@ public class SimulateWebhookRequest
 
 [ApiController]
 [Route("api/admin/payment-settings")]
+[Authorize(Roles = "admin")]
 public class AdminPaymentController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
@@ -144,6 +146,8 @@ public class AdminPaymentController : ControllerBase
             return BadRequest(new { message = "Vui lòng nhập số tài khoản ngân hàng." });
         if (string.IsNullOrWhiteSpace(request.AccountName))
             return BadRequest(new { message = "Vui lòng nhập tên chủ tài khoản." });
+        if (string.IsNullOrWhiteSpace(request.WebhookSecret) || request.WebhookSecret.Trim().Length < 8)
+            return BadRequest(new { message = "Khóa webhook phải có ít nhất 8 ký tự." });
 
         var config = new AdminPaymentSettingsModel
         {
@@ -151,7 +155,7 @@ public class AdminPaymentController : ControllerBase
             AccountNo = request.AccountNo.Trim(),
             AccountName = request.AccountName.Trim().ToUpper(),
             Branch = request.Branch?.Trim() ?? string.Empty,
-            WebhookSecret = string.IsNullOrWhiteSpace(request.WebhookSecret) ? "SEN_SECRET_KEY_888" : request.WebhookSecret.Trim(),
+            WebhookSecret = request.WebhookSecret.Trim(),
             IsAutoConfirmEnabled = request.IsAutoConfirmEnabled,
             GatewayProvider = string.IsNullOrWhiteSpace(request.GatewayProvider) ? "SePay / VietQR Auto" : request.GatewayProvider.Trim()
         };

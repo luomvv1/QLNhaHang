@@ -7,6 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
 using System.Text.Json;
+using Restaurant.Api.Services;
+using Microsoft.AspNetCore.SignalR;
+using Restaurant.Api.Hubs;
 
 namespace Restaurant.Api.Controllers.Admin;
 
@@ -31,8 +34,9 @@ public sealed class CompleteKitchenReconciliationRequest
 public sealed class AdminKitchenReconciliationController : ControllerBase
 {
     private readonly RestaurantDbContext _db;
+    private readonly IHubContext<RestaurantHub>? _hub;
 
-    public AdminKitchenReconciliationController(RestaurantDbContext db) => _db = db;
+    public AdminKitchenReconciliationController(RestaurantDbContext db, IHubContext<RestaurantHub>? hub = null) { _db = db; _hub = hub; }
 
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] DateTime? date)
@@ -149,12 +153,16 @@ public sealed class AdminKitchenReconciliationController : ControllerBase
         }).ToList();
 
         var all = rows.SelectMany(r => r.Lines).ToList();
+        var availability = await PortionAvailabilityService.LoadAsync(_db, localDate);
         return Ok(new
         {
             success = true,
             date = localDate.ToString("yyyy-MM-dd"),
             receipts = rows,
             usageErrors = usage.Errors,
+            receiptReservations = rows.Select(row => new { row.ReceiptId,
+                ReservedPortions = availability.Allocations.Where(a => a.ReceiptId == row.ReceiptId).Select(a => a.Key).Distinct()
+                    .Sum(key => availability.Quotas.GetValueOrDefault(key)?.ReservedPortions ?? 0) }).ToList(),
             dailyReconciled,
             warehouseWaste,
             summary = new
@@ -185,6 +193,8 @@ public sealed class AdminKitchenReconciliationController : ControllerBase
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
+            if (!await PortionAvailabilityService.TryLockAsync(_db))
+                return Conflict(new { message = "Đang cập nhật suất ăn. Vui lòng thử lại." });
             var source = await _db.StockReceipts
                 .Include(r => r.StockReceiptDetails).ThenInclude(d => d.InventoryItem)
                 .Include(r => r.StockReceiptDetails).ThenInclude(d => d.Batch)
@@ -204,6 +214,11 @@ public sealed class AdminKitchenReconciliationController : ControllerBase
                 return Conflict(new { message = "Phieu nay da duoc doi soat. Tai lai bao cao de xem so lieu moi." });
 
             var usageDate = GetUsageDate(source);
+            var availability = await PortionAvailabilityService.LoadAsync(_db, usageDate);
+            var reserved = availability.Allocations.Where(a => a.ReceiptId == source.ReceiptId).Select(a => a.Key).Distinct()
+                .Sum(key => availability.Quotas.GetValueOrDefault(key)?.ReservedPortions ?? 0);
+            if (reserved > 0)
+                return Conflict(new { code = "PORTIONS_RESERVED", message = $"Còn {reserved:0.####} suất đang giữ chỗ. Hoàn tất phục vụ hoặc hủy món chưa nấu trước khi đối soát.", reservedPortions = reserved });
             var usage = await CalculateServedUsage(usageDate);
             if (usage.Errors.Count > 0)
                 return Conflict(new { message = string.Join(" ", usage.Errors) });
@@ -312,6 +327,13 @@ public sealed class AdminKitchenReconciliationController : ControllerBase
 
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
+            if (_hub != null)
+            {
+                try {
+                    await _hub.PublishAsync(_db, "PortionAvailabilityChanged", new { eventType = "reconciled", source.ReceiptId });
+                    await _hub.PublishAsync(_db, "KitchenUpdated", new { eventType = "reconciled", source.ReceiptId });
+                } catch { }
+            }
             return Ok(new { success = true, returnReceiptId = returns?.ReceiptId, wasteReceiptId = waste?.ReceiptId });
         }
         catch (DbUpdateException)

@@ -5,12 +5,14 @@ using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
 using Restaurant.Api.Hubs;
+using Restaurant.Api.Services;
 using System.Security.Claims;
 
 namespace Restaurant.Api.Controllers.Reservations;
 
 [ApiController]
 [Route("api/customer")]
+[Authorize(Roles = "customer,staff,manager,admin")]
 public class CustomerReservationController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
@@ -26,49 +28,64 @@ public class CustomerReservationController : ControllerBase
     /// Lấy thực đơn trực tuyến cho khách hàng tham khảo
     /// </summary>
     [HttpGet("menu")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetCustomerMenu()
     {
-        var categories = await _dbContext.FoodCategories
+        var records = await _dbContext.FoodCategories.Include(c => c.Foods).ThenInclude(f => f.FoodVariants)
             .Where(c => c.IsActive)
             .OrderBy(c => c.SortOrder)
-            .Select(c => new
+            .AsSplitQuery().ToListAsync();
+        var availability = await PortionAvailabilityService.LoadAsync(_dbContext, PortionAvailabilityService.Today);
+        var categories = records.Select(c => new
             {
                 c.CategoryId,
                 c.CategoryName,
                 c.Description,
                 c.SortOrder,
                 Foods = c.Foods
-                    .Where(f => f.IsActive && f.FoodStatus == "available")
-                    .Select(f => new
-                    {
-                        f.FoodId,
-                        f.FoodName,
-                        f.Description,
-                        Price = f.MinPrice,
-                        f.MinPrice,
-                        f.ImageUrl,
-                        f.FoodStatus,
-                        Variants = f.FoodVariants
-                            .Where(v => v.IsActive)
-                            .OrderBy(v => v.SortOrder)
-                            .Select(v => new
-                            {
-                                v.VariantId,
-                                v.VariantName,
-                                v.Price,
-                                v.Unit
-                            }).ToList()
-                    }).ToList()
+                    .Where(f => f.IsActive && (f.FoodStatus == "available" || f.FoodStatus == "sold_out"))
+                    .Select(f => PortionAvailabilityService.MenuFood(f, availability)).ToList()
+            })
+            .ToList();
+
+        return Ok(new { success = true, data = categories });
+    }
+
+    /// <summary>
+    /// Lấy danh sách khuyến mãi đang diễn ra cho khách hàng xem trên trang tin tức / ưu đãi
+    /// </summary>
+    [HttpGet("promotions")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetCustomerPromotions()
+    {
+        var now = DateTime.UtcNow;
+        var promotions = await _dbContext.Promotions
+            .Where(p => p.IsActive && p.StartAt <= now && p.EndAt >= now)
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(p => new
+            {
+                p.PromotionId,
+                p.PromotionCode,
+                p.PromotionName,
+                p.PromotionType,
+                p.PromotionValue,
+                p.MinimumOrderValue,
+                p.UsageLimit,
+                p.UsedCount,
+                p.StartAt,
+                p.EndAt,
+                p.CreatedAt
             })
             .ToListAsync();
 
-        return Ok(new { success = true, data = categories });
+        return Ok(new { success = true, data = promotions });
     }
 
     /// <summary>
     /// Khách hàng gửi yêu cầu đặt bàn trực tuyến
     /// </summary>
     [HttpPost("reservations/book")]
+    [AllowAnonymous]
     public async Task<IActionResult> BookReservation([FromBody] CustomerBookingRequest request)
     {
         if (request == null)
@@ -113,6 +130,8 @@ public class CustomerReservationController : ControllerBase
                 emailClean = currentUser.Email.Trim();
                 customer = await _dbContext.Customers
                     .FirstOrDefaultAsync(c => c.UserId == null && c.Phone == phoneClean);
+                if (customer != null)
+                    return Conflict(new { success = false, message = "Vui lòng liên hệ nhà hàng để xác minh và liên kết hồ sơ có sẵn." });
 
                 if (customer == null)
                 {
@@ -209,7 +228,7 @@ public class CustomerReservationController : ControllerBase
         // 3. Phát thông báo SignalR đến Admin/Staff
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReservationUpdated", new
+            await _hubContext.PublishAsync(_dbContext, "ReservationUpdated", new
             {
                 reservationId = reservation.ReservationId,
                 customerName = reservation.CustomerName,
@@ -247,10 +266,12 @@ public class CustomerReservationController : ControllerBase
             return BadRequest(new { success = false, message = "Vui lòng cung cấp số điện thoại để tra cứu." });
 
         var phoneClean = phone.Trim();
+        if (!await CanAccessPhoneAsync(phoneClean)) return Forbid();
+        var ownCustomerId = User.IsInRole("customer") ? (await GetCurrentCustomerAsync())?.CustomerId : (int?)null;
 
         var bookings = await _dbContext.Reservations
             .Include(r => r.Table)
-            .Where(r => r.CustomerPhone == phoneClean)
+            .Where(r => r.CustomerPhone == phoneClean && (ownCustomerId == null || r.CustomerId == ownCustomerId))
             .OrderByDescending(r => r.ReservationDate)
             .Take(15)
             .Select(r => new
@@ -280,18 +301,15 @@ public class CustomerReservationController : ControllerBase
     /// Khách hàng yêu cầu hủy lịch đặt bàn
     /// </summary>
     [HttpPost("reservations/{id}/cancel")]
+    [Authorize(Roles = "customer")]
     public async Task<IActionResult> CancelBooking(int id, [FromBody] CancelBookingRequest? request)
     {
         var reservation = await _dbContext.Reservations.Include(r => r.Table).FirstOrDefaultAsync(r => r.ReservationId == id);
         var currentCustomer = await GetCurrentCustomerAsync();
-        if (currentCustomer != null && reservation != null && reservation.CustomerId != currentCustomer.CustomerId)
-            return Forbid();
-        if (currentCustomer == null && reservation != null &&
-            (string.IsNullOrWhiteSpace(request?.Phone) ||
-             !string.Equals(reservation.CustomerPhone, request.Phone.Trim(), StringComparison.OrdinalIgnoreCase)))
-            return Unauthorized(new { success = false, message = "Phone confirmation is required." });
         if (reservation == null)
             return NotFound(new { success = false, message = "Không tìm thấy thông tin đặt bàn này." });
+        if (currentCustomer == null || reservation.CustomerId != currentCustomer.CustomerId)
+            return Forbid();
 
         if (reservation.ReservationStatus == "checked_in" || reservation.ReservationStatus == "completed")
             return BadRequest(new { success = false, message = "Phiếu đặt bàn đã đón khách hoặc đã hoàn thành, không thể hủy." });
@@ -328,8 +346,8 @@ public class CustomerReservationController : ControllerBase
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReservationUpdated", new { reservationId = id, eventType = "cancelled" });
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated");
+            await _hubContext.PublishAsync(_dbContext, "ReservationUpdated", new { reservationId = id, eventType = "cancelled" });
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated");
         }
         catch { }
 
@@ -346,13 +364,16 @@ public class CustomerReservationController : ControllerBase
             return BadRequest(new { success = false, message = "Vui lòng cung cấp số điện thoại để tra cứu." });
 
         var phoneClean = phone.Trim();
+        if (!await CanAccessPhoneAsync(phoneClean)) return Forbid();
+        var ownUserId = User.IsInRole("customer") ? GetCurrentUserId() : null;
         var customer = await _dbContext.Customers
             .Include(c => c.PointTransactions)
-            .FirstOrDefaultAsync(c => c.Phone == phoneClean);
+            .FirstOrDefaultAsync(c => c.Phone == phoneClean && (ownUserId == null || c.UserId == ownUserId));
+        var ownCustomerId = customer?.CustomerId;
 
         var bookings = await _dbContext.Reservations
             .Include(r => r.Table)
-            .Where(r => r.CustomerPhone == phoneClean)
+            .Where(r => r.CustomerPhone == phoneClean && (ownUserId == null || r.CustomerId == ownCustomerId))
             .OrderByDescending(r => r.ReservationDate)
             .Take(15)
             .Select(r => new
@@ -471,6 +492,8 @@ public class CustomerReservationController : ControllerBase
             .Include(i => i.InvoiceItems)
             .Include(i => i.IssuedByNavigation)
             .Include(i => i.Payments)
+            .Include(i => i.PromotionUsages)
+                .ThenInclude(pu => pu.Promotion)
             .Include(i => i.Order)
                 .ThenInclude(o => o.OrderTables)
                     .ThenInclude(ot => ot.Table)
@@ -478,6 +501,22 @@ public class CustomerReservationController : ControllerBase
 
         if (invoice == null)
             return NotFound(new { success = false, message = "Không tìm thấy hóa đơn với mã này." });
+        if (User.IsInRole("customer"))
+        {
+            var customer = await GetCurrentCustomerAsync();
+            if (customer == null || (invoice.CustomerId != customer.CustomerId && invoice.Order?.CustomerId != customer.CustomerId))
+                return Forbid();
+        }
+
+        var promoUsage = invoice.PromotionUsages.FirstOrDefault();
+        string voucherCode = promoUsage?.Promotion?.PromotionCode ?? "";
+        string voucherName = promoUsage?.Promotion?.PromotionName ?? "";
+        decimal voucherDiscount = promoUsage?.DiscountAmount ?? 0m;
+        decimal pointDiscount = invoice.PointsUsed * 1000m;
+        if (voucherDiscount <= 0 && invoice.DiscountAmount > pointDiscount)
+        {
+            voucherDiscount = invoice.DiscountAmount - pointDiscount;
+        }
 
         return Ok(new
         {
@@ -489,6 +528,10 @@ public class CustomerReservationController : ControllerBase
                 invoice.IssuedAt,
                 invoice.Subtotal,
                 invoice.DiscountAmount,
+                voucherCode = voucherCode,
+                voucherName = voucherName,
+                voucherDiscount = voucherDiscount,
+                pointDiscount = pointDiscount,
                 invoice.PointsUsed,
                 invoice.PointsEarned,
                 invoice.TotalAmount,
@@ -518,7 +561,7 @@ public class CustomerReservationController : ControllerBase
         });
     }
 
-    [Authorize(Roles = "customer,staff,manager,admin")]
+    [Authorize(Roles = "customer")]
     [HttpGet("account")]
     public async Task<IActionResult> GetAccount()
     {
@@ -643,7 +686,7 @@ public class CustomerReservationController : ControllerBase
         });
     }
 
-    [Authorize(Roles = "customer,staff,manager,admin")]
+    [Authorize(Roles = "customer")]
     [HttpPut("account")]
     public async Task<IActionResult> UpdateAccount([FromBody] UpdateCustomerAccountRequest request)
     {
@@ -690,6 +733,14 @@ public class CustomerReservationController : ControllerBase
         await _dbContext.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Account information updated." });
+    }
+
+    private async Task<bool> CanAccessPhoneAsync(string phone)
+    {
+        if (User.IsInRole("admin") || User.IsInRole("manager") || User.IsInRole("staff")) return true;
+        var userId = GetCurrentUserId();
+        return userId.HasValue && await _dbContext.Customers.AnyAsync(customer =>
+            customer.UserId == userId && customer.Phone == phone);
     }
 
     private int? GetCurrentUserId()

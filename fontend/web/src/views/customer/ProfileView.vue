@@ -62,41 +62,41 @@
 
             <!-- VIP Member Card -->
             <div class="dola-card overflow-hidden">
-              <div class="p-4 text-center position-relative" style="background: linear-gradient(135deg, #10302C, #184741); border-bottom: 1px solid var(--dola-hairline);">
+              <div class="p-4 text-center position-relative" style="background: linear-gradient(135deg, #7A1C28, #5E141D); border-bottom: 1px solid var(--dola-hairline);">
                 <div class="dola-avatar-large mx-auto mb-3">
                   {{ customerInfo.customerName?.charAt(0) || '👤' }}
                 </div>
                 <h4 class="text-white fw-bold mb-1">{{ customerInfo.customerName }}</h4>
-                <div class="text-gold small mb-2">📞 {{ customerInfo.phone }}</div>
-                <span class="dola-pill-badge">
+                <div class="small mb-2" style="color: #FFD180;">📞 {{ customerInfo.phone }}</div>
+                <span class="badge rounded-pill px-3 py-1.5" style="background: rgba(255,255,255,0.2); color: #FFFFFF; border: 1px solid rgba(255,255,255,0.3); font-weight: 700;">
                   ⭐ Thành Viên Thân Thiết
                 </span>
               </div>
 
               <!-- Points & Stats Box -->
               <div class="p-4">
-                <div class="p-3 rounded-3 text-center mb-3" style="background: rgba(0,0,0,0.3); border: 1px solid var(--dola-hairline);">
-                  <div class="small text-white-50 mb-1">Điểm Tích Lũy Khả Dụng</div>
-                  <div class="dola-font-title text-gold display-5 fw-bold lh-1 mb-1">
+                <div class="p-3 rounded-3 text-center mb-3" style="background: var(--dola-surface-alt); border: 1px solid var(--dola-hairline);">
+                  <div class="small mb-1" style="color: #6E6157;">Điểm Tích Lũy Khả Dụng</div>
+                  <div class="dola-font-title display-5 fw-bold lh-1 mb-1" style="color: var(--dola-wine);">
                     {{ customerInfo.loyaltyPoints?.toLocaleString('vi-VN') || 0 }}
                   </div>
                   <div class="small text-body-dola">
-                    Quy đổi: <strong class="text-gold">{{ formatCurrency((customerInfo.loyaltyPoints || 0) * 1000) }}</strong>
+                    Quy đổi: <strong style="color: var(--dola-wine);">{{ formatCurrency((customerInfo.loyaltyPoints || 0) * 1000) }}</strong>
                   </div>
                 </div>
 
                 <div class="d-flex flex-column gap-2 small mb-4">
-                  <div class="d-flex justify-content-between p-2 rounded-2" style="background: rgba(255,255,255,0.03); border: 1px solid var(--dola-hairline);">
-                    <span class="text-white-50">Tổng số lần ghé:</span>
-                    <strong class="text-white">{{ customerInfo.totalOrders || 0 }} lần</strong>
+                  <div class="d-flex justify-content-between p-2 rounded-2" style="background: var(--dola-surface-alt); border: 1px solid var(--dola-hairline);">
+                    <span style="color: #6E6157;">Tổng số lần ghé:</span>
+                    <strong style="color: #1F1A17;">{{ customerInfo.totalOrders || 0 }} lần</strong>
                   </div>
-                  <div class="d-flex justify-content-between p-2 rounded-2" style="background: rgba(255,255,255,0.03); border: 1px solid var(--dola-hairline);">
-                    <span class="text-white-50">Tổng chi tiêu:</span>
-                    <strong class="text-gold">{{ formatCurrency(customerInfo.totalSpent) }}</strong>
+                  <div class="d-flex justify-content-between p-2 rounded-2" style="background: var(--dola-surface-alt); border: 1px solid var(--dola-hairline);">
+                    <span style="color: #6E6157;">Tổng chi tiêu:</span>
+                    <strong style="color: var(--dola-wine); font-weight: 700;">{{ formatCurrency(customerInfo.totalSpent) }}</strong>
                   </div>
-                  <div class="d-flex justify-content-between p-2 rounded-2" style="background: rgba(255,255,255,0.03); border: 1px solid var(--dola-hairline);">
-                    <span class="text-white-50">Ngày tham gia:</span>
-                    <strong class="text-white">{{ formatDate(customerInfo.createdAt) }}</strong>
+                  <div class="d-flex justify-content-between p-2 rounded-2" style="background: var(--dola-surface-alt); border: 1px solid var(--dola-hairline);">
+                    <span style="color: #6E6157;">Ngày tham gia:</span>
+                    <strong style="color: #1F1A17;">{{ formatDate(customerInfo.createdAt) }}</strong>
                   </div>
                 </div>
 
@@ -108,14 +108,14 @@
 
             <!-- Member Privileges Box -->
             <div class="dola-card p-4">
-              <h5 class="text-gold fw-bold mb-3 small text-uppercase" style="letter-spacing: 0.05em;">
+              <h5 class="fw-bold mb-3 small text-uppercase" style="letter-spacing: 0.05em; color: var(--dola-wine);">
                 🎁 Quyền Lợi Thành Viên
               </h5>
-              <ul class="list-unstyled d-flex flex-column gap-2 small text-body-dola mb-0">
-                <li>✨ <strong class="text-white">Tích 1 điểm</strong> cho mỗi 10.000đ thanh toán.</li>
-                <li>🎂 <strong class="text-white">Tặng quà sinh nhật</strong> và giảm 10% tiệc sinh nhật.</li>
-                <li>🪑 <strong class="text-white">Ưu tiên xếp bàn VIP</strong> vào các dịp cuối tuần, lễ Tết.</li>
-                <li>🧾 <strong class="text-white">Lưu trữ hóa đơn điện tử</strong> trọn đời để tra cứu dễ dàng.</li>
+              <ul class="list-unstyled d-flex flex-column gap-2 small mb-0" style="color: #574A40;">
+                <li>✨ <strong style="color: #1F1A17;">Tích 1 điểm</strong> cho mỗi 10.000đ thanh toán.</li>
+                <li>🎂 <strong style="color: #1F1A17;">Tặng quà sinh nhật</strong> và giảm 10% tiệc sinh nhật.</li>
+                <li>🪑 <strong style="color: #1F1A17;">Ưu tiên xếp bàn VIP</strong> vào các dịp cuối tuần, lễ Tết.</li>
+                <li>🧾 <strong style="color: #1F1A17;">Lưu trữ hóa đơn điện tử</strong> trọn đời để tra cứu dễ dàng.</li>
               </ul>
             </div>
 
@@ -155,16 +155,16 @@
             <div v-if="profileTab === 'invoices'">
               <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                  <h4 class="text-white fw-bold mb-1 fs-5">Danh Sách Hóa Đơn Dùng Bữa</h4>
-                  <p class="text-body-dola small mb-0">Bấm vào bất kỳ hóa đơn nào để xem chi tiết hoặc mở <strong>chế độ in bill nhiệt K80</strong>.</p>
+                  <h4 class="fw-bold mb-1 fs-5" style="color: #1F1A17;">Danh Sách Hóa Đơn Dùng Bữa</h4>
+                  <p class="small mb-0" style="color: #6E6157;">Bấm vào bất kỳ hóa đơn nào để xem chi tiết hoặc mở <strong>chế độ in bill nhiệt K80</strong>.</p>
                 </div>
               </div>
 
               <!-- Empty Invoices -->
               <div v-if="invoices.length === 0" class="text-center py-5">
                 <div class="fs-1 mb-2">🧾</div>
-                <h5 class="text-gold dola-font-title fs-3">Chưa Có Hóa Đơn Nào</h5>
-                <p class="text-body-dola small mb-4">Quý khách chưa có hóa đơn thanh toán nào liên kết với số điện thoại này.</p>
+                <h5 class="dola-font-title fs-3" style="color: var(--dola-wine);">Chưa Có Hóa Đơn Nào</h5>
+                <p class="small mb-4" style="color: #6E6157;">Quý khách chưa có hóa đơn thanh toán nào liên kết với số điện thoại này.</p>
                 <router-link to="/customer/reservation" class="dola-btn-primary">
                   Đặt Bàn Thưởng Thức Ngay
                 </router-link>
@@ -176,27 +176,27 @@
                   v-for="inv in invoices"
                   :key="inv.invoiceId"
                   class="p-4 rounded-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3"
-                  style="background: rgba(0,0,0,0.3); border: 1px solid var(--dola-hairline);"
+                  style="background: #FFFFFF; border: 1.5px solid var(--dola-hairline); box-shadow: 0 4px 12px rgba(44,30,20,0.03);"
                 >
                   <div>
                     <div class="d-flex align-items-center gap-2 mb-1">
-                      <span class="text-gold fw-bold fs-6">#{{ inv.invoiceCode }}</span>
+                      <span class="fw-bold fs-6" style="color: var(--dola-wine);">#{{ inv.invoiceCode }}</span>
                       <span class="badge bg-success text-white rounded-pill px-3 py-1 small">
                         ✓ Đã thanh toán
                       </span>
                     </div>
-                    <div class="small text-body-dola mb-1">
+                    <div class="small mb-1" style="color: #574A40;">
                       🕒 {{ formatDateTime(inv.issuedAt) }} ·
-                      🪑 <strong>{{ inv.tableName }}</strong> ({{ inv.areaName }})
+                      🪑 <strong style="color: #1F1A17;">{{ inv.tableName }}</strong> ({{ inv.areaName }})
                     </div>
-                    <div class="small text-white-50">
+                    <div class="small" style="color: #8C7F75;">
                       👨‍💼 Thu ngân: {{ inv.cashierName }} ·
                       🍽️ {{ inv.items?.length || 0 }} món ăn
                     </div>
                   </div>
 
                   <div class="text-md-end pt-2 pt-md-0 border-top border-md-0 border-secondary border-opacity-25">
-                    <div class="text-gold fw-bold fs-5 mb-2">{{ formatCurrency(inv.totalAmount) }}</div>
+                    <div class="fw-bold fs-5 mb-2" style="color: var(--dola-wine);">{{ formatCurrency(inv.totalAmount) }}</div>
                     <button class="dola-btn-primary btn-sm py-1 px-3" style="height: 36px; font-size: 13px;" @click="openReceiptModal(inv)">
                       <span>🖨️</span>
                       <span>Xem In Bill K80</span>
@@ -208,12 +208,12 @@
 
             <!-- ===== TAB 2: BOOKINGS ===== -->
             <div v-else-if="profileTab === 'bookings'">
-              <h4 class="text-white fw-bold mb-3 fs-5">Lịch Sử Đặt Bàn Gần Đây</h4>
+              <h4 class="fw-bold mb-3 fs-5" style="color: #1F1A17;">Lịch Sử Đặt Bàn Gần Đây</h4>
 
               <div v-if="bookingHistory.length === 0" class="text-center py-5">
                 <div class="fs-1 mb-2">📭</div>
-                <h5 class="text-gold dola-font-title fs-3">Chưa Có Phiếu Đặt Bàn Nào</h5>
-                <p class="text-body-dola small mb-4">Quý khách chưa tạo phiếu đặt bàn nào với số điện thoại này.</p>
+                <h5 class="dola-font-title fs-3" style="color: var(--dola-wine);">Chưa Có Phiếu Đặt Bàn Nào</h5>
+                <p class="small mb-4" style="color: #6E6157;">Quý khách chưa tạo phiếu đặt bàn nào với số điện thoại này.</p>
                 <router-link to="/customer/reservation" class="dola-btn-primary">
                   Đặt Bàn Ngay
                 </router-link>
@@ -224,22 +224,22 @@
                   v-for="b in bookingHistory"
                   :key="b.reservationId"
                   class="p-4 rounded-3"
-                  style="background: rgba(0,0,0,0.3); border: 1px solid var(--dola-hairline);"
+                  style="background: #FFFFFF; border: 1.5px solid var(--dola-hairline); box-shadow: 0 4px 12px rgba(44,30,20,0.03);"
                 >
                   <div class="d-flex justify-content-between align-items-start mb-2">
                     <div>
-                      <span class="text-gold fw-bold fs-6">Phiếu #{{ b.reservationId }}</span>
+                      <span class="fw-bold fs-6" style="color: var(--dola-wine);">Phiếu #{{ b.reservationId }}</span>
                       <span class="badge ms-2" :class="getReservationBadgeClass(b.reservationStatus)">
                         {{ getReservationStatusText(b.reservationStatus) }}
                       </span>
                     </div>
                     <span class="dola-pill-badge">👥 {{ b.guestCount }} khách</span>
                   </div>
-                  <div class="small text-body-dola mb-1">
-                    🕒 <strong>{{ formatDateTime(b.reservationDate) }}</strong> ·
+                  <div class="small mb-1" style="color: #574A40;">
+                    🕒 <strong style="color: #1F1A17;">{{ formatDateTime(b.reservationDate) }}</strong> ·
                     🪑 {{ b.assignedTable ? `${b.assignedTable.tableName} (${b.assignedTable.areaName})` : 'Chờ xếp bàn' }}
                   </div>
-                  <div v-if="b.note" class="small text-white-50 fst-italic">
+                  <div v-if="b.note" class="small fst-italic" style="color: #8C7F75;">
                     📝 {{ b.note }}
                   </div>
                 </div>
@@ -248,11 +248,11 @@
 
             <!-- ===== TAB 3: POINTS HISTORY ===== -->
             <div v-else-if="profileTab === 'points'">
-              <h4 class="text-white fw-bold mb-3 fs-5">Lịch Sử Tích Lũy Điểm Thưởng</h4>
+              <h4 class="fw-bold mb-3 fs-5" style="color: #1F1A17;">Lịch Sử Tích Lũy Điểm Thưởng</h4>
 
               <div v-if="pointHistory.length === 0" class="text-center py-5">
                 <div class="fs-1 mb-2">💰</div>
-                <p class="text-body-dola small">Chưa có giao dịch điểm nào được ghi nhận.</p>
+                <p class="small" style="color: #6E6157;">Chưa có giao dịch điểm nào được ghi nhận.</p>
               </div>
 
               <div v-else class="d-flex flex-column gap-2">
@@ -260,17 +260,17 @@
                   v-for="pt in pointHistory"
                   :key="pt.pointTransactionId"
                   class="d-flex justify-content-between align-items-center p-3 rounded-2"
-                  style="background: rgba(0,0,0,0.3); border: 1px solid var(--dola-hairline);"
+                  style="background: #FFFFFF; border: 1.5px solid var(--dola-hairline); box-shadow: 0 2px 6px rgba(44,30,20,0.02);"
                 >
                   <div>
-                    <div class="text-white fw-semibold small">{{ pt.note || 'Tích lũy từ hóa đơn' }}</div>
-                    <div class="text-white-50" style="font-size: 0.75rem;">{{ formatDateTime(pt.createdAt) }}</div>
+                    <div class="fw-semibold small" style="color: #1F1A17;">{{ pt.note || 'Tích lũy từ hóa đơn' }}</div>
+                    <div style="font-size: 0.75rem; color: #8C7F75;">{{ formatDateTime(pt.createdAt) }}</div>
                   </div>
                   <div class="text-end">
                     <span class="fw-bold fs-6" :class="pt.points >= 0 ? 'text-success' : 'text-danger'">
                       {{ pt.points >= 0 ? '+' : '' }}{{ pt.points }} điểm
                     </span>
-                    <div class="text-white-50" style="font-size: 0.72rem;">Số dư: {{ pt.balanceAfter }} điểm</div>
+                    <div style="font-size: 0.72rem; color: #8C7F75;">Số dư: {{ pt.balanceAfter }} điểm</div>
                   </div>
                 </div>
               </div>

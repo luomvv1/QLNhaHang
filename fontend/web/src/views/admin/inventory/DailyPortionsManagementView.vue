@@ -1,4 +1,5 @@
 <template>
+  <InventoryWorkspaceNav />
   <div class="daily-portions-page">
     <header class="page-header">
       <div class="page-heading">
@@ -9,13 +10,13 @@
 
       <div class="page-actions">
         <div class="date-picker-wrap">
-          <button class="icon-button" title="Ngày hôm qua" @click="changeDateOffset(-1)">‹</button>
+          <button class="icon-button" title="Ngày hôm qua" aria-label="Ngày hôm qua" @click="changeDateOffset(-1)"><ChevronLeft :size="18" /></button>
           <input v-model="selectedDate" type="date" @change="fetchDailyPortions" />
-          <button class="icon-button" title="Ngày mai" @click="changeDateOffset(1)">›</button>
+          <button class="icon-button" title="Ngày mai" aria-label="Ngày mai" @click="changeDateOffset(1)"><ChevronRight :size="18" /></button>
           <button class="today-button" @click="setToday">Hôm nay</button>
         </div>
         <button class="button button-light" :disabled="hasRequisition" :title="hasRequisition ? 'Hãy hủy phiếu nháp trước khi đổi kế hoạch' : 'Thêm món và số suất cần phục vụ'" @click="openPlanModal">
-          <span>＋</span>
+          <Plus :size="18" />
           Lập kế hoạch
         </button>
         <button
@@ -24,28 +25,19 @@
           :disabled="isGeneratingRequisition || hasRequisition || shortageInfo || summary.totalNeedToCook <= 0"
           @click="generateRequisition"
         >
-          <span>⇧</span>
+          <PackageOpen :size="18" />
           {{ isGeneratingRequisition ? 'Đang lập...' : 'Lập phiếu xuất bếp' }}
         </button>
-        <button v-else-if="canGenerateAdditionalRequisition" class="button button-warning" :disabled="isGeneratingAdditional || shortageInfo || hasPendingAdditionalReceipt" :title="hasPendingAdditionalReceipt ? 'Hãy duyệt hoặc hủy phiếu bổ sung đang chờ trước' : 'Lập phiếu xuất bếp bổ sung'" @click="openAdditionalModal">
-          <span>＋</span>
+        <button v-else-if="canGenerateAdditionalRequisition" class="button button-warning" :disabled="isGeneratingAdditional || shortageInfo || hasPendingAdditionalReceipt || !portions.some(p => p.availabilityStatus !== 'closed')" :title="hasPendingAdditionalReceipt ? 'Hãy duyệt hoặc hủy phiếu bổ sung đang chờ trước' : 'Lập phiếu xuất bếp bổ sung'" @click="openAdditionalModal">
+          <Plus :size="18" />
           Xuất bổ sung
         </button>
         <button v-else class="button button-light" disabled title="Phiếu xuất bếp đang chờ thủ kho duyệt">
-          <span>⏳</span>
+          <Clock3 :size="18" />
           Chờ thủ kho duyệt
         </button>
       </div>
     </header>
-
-    <section class="workflow-strip" aria-label="Quy trình lập phiếu xuất bếp">
-      <div class="workflow-step workflow-step-active"><span class="workflow-number">1</span><div><strong>Chốt kế hoạch</strong><small>Số suất cần phục vụ</small></div></div>
-      <span class="workflow-line"></span>
-      <div class="workflow-step" :class="{ 'workflow-step-active': portions.length > 0 }"><span class="workflow-number">2</span><div><strong>Tính theo BOM</strong><small>Gom nguyên liệu cần xuất</small></div></div>
-      <span class="workflow-line"></span>
-      <div class="workflow-step" :class="{ 'workflow-step-active': hasRequisition }"><span class="workflow-number">3</span><div><strong>Chờ thủ kho duyệt</strong><small>Kho mới trừ tồn</small></div></div>
-      <div class="workflow-status" :class="hasRequisition ? 'status-ready' : 'status-pending'"><span class="status-dot"></span>{{ initialReceiptStatus === 'approved' ? 'Đã duyệt' : hasRequisition ? 'Chờ thủ kho duyệt' : 'Chưa lập phiếu' }}</div>
-    </section>
 
     <section v-if="shortageInfo" class="shortage-banner" role="alert">
       <div class="shortage-heading"><strong>Chưa thể lập phiếu xuất</strong><span>{{ shortageInfo.message }}</span></div>
@@ -57,9 +49,10 @@
 
     <div class="plan-overview">
       <span><strong>{{ formatNumber(summary.totalDishes) }}</strong> biến thể</span>
-      <span><strong>{{ formatNumber(summary.totalPlanned) }}</strong> suất cần phục vụ</span>
+      <span><strong>{{ formatNumber(summary.totalIssued || 0) }}</strong> suất đã duyệt xuất</span>
+      <span><strong>{{ formatNumber(summary.totalReserved || 0) }}</strong> suất đang giữ chỗ</span>
       <span><strong>{{ formatNumber(summary.totalSold) }}</strong> suất đã phục vụ</span>
-      <span><strong>{{ formatNumber(summary.totalNeedToCook) }}</strong> suất tính BOM</span>
+      <span><strong>{{ formatNumber(summary.totalRemaining || 0) }}</strong> suất còn nhận</span>
       <span class="overview-status" :class="hasRequisition ? 'status-ready' : 'status-pending'">
         <span class="status-dot"></span>{{ initialReceiptStatus === 'approved' ? 'Phiếu đã duyệt' : hasRequisition ? 'Đang chờ duyệt' : 'Chưa tạo phiếu xuất' }}
       </span>
@@ -77,7 +70,7 @@
             <option value="">Tất cả danh mục</option>
             <option v-for="cat in categories" :key="cat.categoryId" :value="cat.categoryId">{{ cat.categoryName }}</option>
           </select>
-          <button class="icon-button icon-button-muted" title="Làm mới" @click="fetchDailyPortions">↻</button>
+          <button class="icon-button icon-button-muted" title="Làm mới" aria-label="Làm mới" @click="fetchDailyPortions"><RefreshCw :size="18" /></button>
         </div>
       </div>
 
@@ -113,33 +106,40 @@
           <div class="variant-table-wrap">
             <div class="variant-grid variant-grid-head">
               <div>Biến thể / giá bán</div>
-              <div class="align-right">Kế hoạch</div>
+              <div class="align-right">Đã xuất</div>
+              <div class="align-right">Đang giữ chỗ</div>
               <div class="align-right">Đã phục vụ</div>
-              <div class="align-right">Tính BOM / xuất</div>
+              <div class="align-right">Còn nhận</div>
               <div class="align-center">Thao tác</div>
             </div>
 
-            <div v-for="p in group.items" :key="p.portionControlId" class="variant-grid variant-grid-row" :class="{ 'row-out-of-stock': p.plannedPortions > 0 && p.remainingPortions <= 0 }">
+            <div v-for="p in group.items" :key="p.portionControlId" class="variant-grid variant-grid-row" :class="{ 'row-out-of-stock': p.availabilityStatus === 'plan_full' }">
               <div class="variant-name-cell">
                 <strong>{{ p.variantName }}</strong>
                 <small>{{ formatCurrency(p.price) }} / {{ p.unit }}</small>
-                <span v-if="initialReceiptStatus === 'approved'" class="portion-export-status portion-exported">✓ Đã xuất kho ({{ formatNumber(p.plannedPortions) }} {{ p.unit }})</span>
+                <small>Kế hoạch đầu ca: {{ formatNumber(p.initialPlannedPortions) }} {{ p.unit }}</small>
+                <span v-if="p.issuedPortions > 0" class="portion-export-status portion-exported">Đã duyệt xuất bếp</span>
                 <span v-else-if="hasRequisition" class="portion-export-status portion-waiting">Chưa ghi nhận kho</span>
               </div>
               <div class="number-cell text-blue">
-                {{ formatNumber(p.plannedPortions) }} <small>{{ p.unit }}</small>
+                {{ formatNumber(p.issuedPortions || 0) }} <small>{{ p.unit }}</small>
                 <small v-if="p.additionalApprovedPortions > 0" class="plan-breakdown">(Đầu ca: {{ formatNumber(p.initialPlannedPortions) }} + Thêm: {{ formatNumber(p.additionalApprovedPortions) }})</small>
                 <span v-if="p.pendingAdditionalPortions > 0" class="pending-portions-badge">⏳ +{{ formatNumber(p.pendingAdditionalPortions) }} suất chờ duyệt</span>
               </div>
+              <div class="number-cell text-orange">{{ formatNumber(p.reservedPortions || 0) }} <small>{{ p.unit }}</small></div>
               <div class="number-cell text-cyan">{{ formatNumber(p.soldPortions) }} <small>{{ p.unit }}</small></div>
               <div class="number-cell remaining-cell">
-                <span v-if="p.remainingPortions > 5" class="remain-pill remain-positive">🟢 Còn {{ formatNumber(p.remainingPortions) }} {{ p.unit }}</span>
-                <span v-else-if="p.remainingPortions > 0" class="remain-pill remain-warning">🟠 Sắp hết (còn {{ formatNumber(p.remainingPortions) }})</span>
-                <span v-else class="remain-pill remain-danger">🔴 Hết suất kế hoạch!</span>
+                <span v-if="p.kitchenSoldOut" class="remain-pill remain-danger">Bếp tạm hết món</span>
+                <span v-else-if="p.availabilityStatus === 'closed'" class="remain-pill remain-warning">Đã chốt nhận món</span>
+                <span v-else-if="p.availabilityStatus === 'awaiting_issue'" class="remain-pill remain-warning">Chờ duyệt xuất</span>
+                <span v-else-if="p.availabilityStatus === 'unplanned'" class="remain-pill">Chưa lập kế hoạch</span>
+                <span v-else-if="p.remainingPortions > 5" class="remain-pill remain-positive">Còn {{ formatNumber(p.remainingPortions) }} {{ p.unit }}</span>
+                <span v-else-if="p.remainingPortions > 0" class="remain-pill remain-warning">Còn {{ formatNumber(p.remainingPortions) }} {{ p.unit }}</span>
+                <span v-else class="remain-pill remain-danger">Đã nhận đủ suất</span>
               </div>
               <div class="actions-cell">
                 <button
-                  v-if="canGenerateAdditionalRequisition && !hasPendingAdditionalReceipt && p.remainingPortions <= 5 && p.pendingAdditionalPortions <= 0"
+                  v-if="canGenerateAdditionalRequisition && p.availabilityStatus !== 'closed' && !hasPendingAdditionalReceipt && p.remainingPortions <= 5 && p.pendingAdditionalPortions <= 0"
                   class="additional-row-action"
                   title="Xuất thêm 10 suất cho biến thể này"
                   @click="openQuickAdditionalForDish(p)"
@@ -150,14 +150,15 @@
                   disabled
                   title="Phiếu bổ sung đang chờ thủ kho duyệt"
                 >⏳ Đang chờ duyệt</button>
-                <button class="row-action action-info" title="Xem định mức và tồn nguyên liệu" @click="viewPortionBom(p)">⌕</button>
-                <button class="row-action action-edit" :disabled="hasRequisition" :title="hasRequisition ? 'Hãy hủy phiếu nháp trước khi sửa kế hoạch' : 'Sửa kế hoạch món này'" @click="openEditPortionModal(p)">✎</button>
+                <button class="row-action action-info" title="Xem định mức và tồn nguyên liệu" aria-label="Xem định mức" @click="viewPortionBom(p)"><Search :size="16" /></button>
+                <button class="row-action action-edit" :disabled="hasRequisition" aria-label="Sửa kế hoạch" :title="hasRequisition ? 'Hãy hủy phiếu nháp trước khi sửa kế hoạch' : 'Sửa kế hoạch món này'" @click="openEditPortionModal(p)"><Pencil :size="16" /></button>
                 <button
                   class="row-action action-delete"
                   :title="hasRequisition ? 'Hãy hủy phiếu nháp trước khi xóa' : 'Xóa khỏi kế hoạch'"
                   :disabled="hasRequisition || p.soldPortions > 0"
                   @click="deletePortion(p)"
-                >×</button>
+                  aria-label="Xóa khỏi kế hoạch"
+                ><X :size="16" /></button>
               </div>
             </div>
           </div>
@@ -262,11 +263,13 @@
 </template>
 
 <script setup>
+import InventoryWorkspaceNav from '@/components/InventoryWorkspaceNav.vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { ChevronLeft, ChevronRight, Clock3, PackageOpen, Pencil, Plus, RefreshCw, Search, X } from '@lucide/vue';
 import axios from 'axios';
 import * as signalR from '@microsoft/signalr';
 
-const API_ROOT = 'http://localhost:5079/api/admin';
+const API_ROOT = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin`;
 const API_BASE = `${API_ROOT}/inventory/daily-portions`;
 const CATEGORY_API = `${API_ROOT}/category/list`;
 const FOOD_API = `${API_ROOT}/food/list`;
@@ -415,12 +418,20 @@ function changeDateOffset(days) {
   fetchDailyPortions();
 }
 
-async function fetchDailyPortions() {
-  loading.value = true;
+let dailyRequestId = 0;
+let dailyRefreshTimer;
+const refreshDailyPortions = () => {
+  clearTimeout(dailyRefreshTimer);
+  dailyRefreshTimer = setTimeout(() => fetchDailyPortions({ background: true }), 150);
+};
+async function fetchDailyPortions({ background = false } = {}) {
+  const requestId = ++dailyRequestId;
+  if (!background) loading.value = true;
   loadError.value = '';
   shortageInfo.value = null;
   try {
     const response = await axios.get(API_BASE, { params: { date: selectedDate.value }, timeout: 8000 });
+    if (requestId !== dailyRequestId) return;
     if (!response.data?.success) throw new Error(response.data?.message || 'Máy chủ không trả về dữ liệu hợp lệ.');
 
     portions.value = Array.isArray(response.data.data) ? response.data.data : [];
@@ -430,6 +441,7 @@ async function fetchDailyPortions() {
     initialReceiptStatus.value = response.data.initialReceiptStatus || null;
     canGenerateAdditionalRequisition.value = Boolean(response.data.canGenerateAdditionalRequisition);
   } catch (error) {
+    if (requestId !== dailyRequestId) return;
     console.error('Không thể tải điều phối suất ăn:', error);
     const status = error.response?.status;
     loadError.value = status === 401 || status === 403
@@ -438,7 +450,7 @@ async function fetchDailyPortions() {
         ? 'Máy chủ phản hồi quá 8 giây. Hãy kiểm tra API rồi thử lại.'
         : error.response?.data?.message || 'Không kết nối được máy chủ API.';
   } finally {
-    loading.value = false;
+    if (requestId === dailyRequestId) loading.value = false;
   }
 }
 
@@ -480,7 +492,7 @@ async function generateRequisition() {
 }
 
 function openAdditionalModal() {
-  additionalRows.value = portions.value.map((portion) => ({
+  additionalRows.value = portions.value.filter(portion => portion.availabilityStatus !== 'closed').map((portion) => ({
     portionControlId: portion.portionControlId,
     foodId: portion.foodId,
     variantId: portion.variantId,
@@ -649,39 +661,41 @@ async function submitBatchPlan() {
 onMounted(async () => {
   await Promise.all([fetchCategories(), fetchDailyPortions()]);
   try {
-    hubConnection = new signalR.HubConnectionBuilder().withUrl('http://localhost:5079/hubs/restaurant', { skipNegotiation: true, transport: signalR.HttpTransportType.WebSockets }).withAutomaticReconnect().build();
-    hubConnection.on('KitchenUpdated', fetchDailyPortions);
-    hubConnection.on('InventoryUpdated', fetchDailyPortions);
+    hubConnection = new signalR.HubConnectionBuilder().withUrl(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/hubs/restaurant`, { accessTokenFactory: () => localStorage.getItem('token') || '', skipNegotiation: true, transport: signalR.HttpTransportType.WebSockets }).withAutomaticReconnect().build();
+    hubConnection.on('PortionAvailabilityChanged', refreshDailyPortions);
+    hubConnection.on('FoodAvailabilityChanged', refreshDailyPortions);
+    hubConnection.on('KitchenUpdated', refreshDailyPortions);
+    hubConnection.on('InventoryUpdated', refreshDailyPortions);
     await hubConnection.start();
   } catch (error) {
     console.warn('SignalR không kết nối được, màn hình vẫn dùng tải lại thủ công:', error.message);
   }
 });
 
-onUnmounted(() => { if (hubConnection) hubConnection.stop(); });
+onUnmounted(() => { dailyRequestId++; clearTimeout(dailyRefreshTimer); if (hubConnection) hubConnection.stop(); });
 </script>
 
 <style scoped>
 .daily-portions-page { min-height: calc(100vh - 70px); padding: 24px; color: #172033; background: #f5f7fb; }
-.page-header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding: 24px 28px; background: #0f766e; color: #fff; border-radius: 10px; }
+.page-header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding: 16px 0 20px; background: transparent; color: #203540; border-bottom: 1px solid #dbe3e8; border-radius: 0; }
 .page-header { padding: 16px 20px; align-items: center; }
 .page-heading h1 { margin: 4px 0 4px; font-size: 24px; line-height: 1.15; letter-spacing: 0; }
-.page-heading p { margin: 0; color: rgba(255,255,255,.78); }
-.eyebrow, .modal-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; color: #a7f3d0; }
+.page-heading p { margin: 0; color: #617885; font-size: 13px; }
+.eyebrow, .modal-kicker { font-size: 11px; font-weight: 600; letter-spacing: 0; color: #466a70; }
 .page-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.date-picker-wrap { display: flex; align-items: center; gap: 4px; padding: 4px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 7px; }
+.date-picker-wrap { display: flex; align-items: center; gap: 4px; padding: 4px; background: #fff; border: 1px solid #d1dde4; border-radius: 6px; }
 .date-picker-wrap input { width: 135px; padding: 7px 8px; color: #172033; background: #fff; border: 0; border-radius: 5px; font-weight: 700; }
 .button, .icon-button, .today-button { border: 1px solid transparent; border-radius: 6px; font: inherit; cursor: pointer; transition: .15s ease; }
 .button { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 13px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .button:disabled { opacity: .55; cursor: not-allowed; }
-.button-light { color: #fff; background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.28); }
+.button-light { color: #375360; background: #fff; border-color: #cbd9e0; }
 .button-light:hover { background: rgba(255,255,255,.2); }
 .button-warning { color: #172033; background: #fbbf24; }
 .button-primary { color: #fff; background: #0f766e; border-color: #0f766e; }
 .button-secondary { color: #334155; background: #fff; border-color: #cbd5e1; }
 .button-secondary:hover { background: #f8fafc; }
-.icon-button, .today-button { min-width: 32px; min-height: 32px; padding: 4px 8px; color: #fff; background: transparent; border-color: transparent; font-weight: 800; }
-.today-button { color: #0f766e; background: #fff; }
+.icon-button, .today-button { min-width: 40px; min-height: 40px; padding: 4px 8px; color: #365c68; background: transparent; border-color: transparent; font-weight: 600; }
+.today-button { color: #0f766e; background: #fff; white-space: nowrap; }
 .workflow-strip { display: flex; align-items: center; gap: 12px; margin: 16px 0; padding: 14px 18px; background: #fff; border: 1px solid #dbe4ec; border-radius: 8px; }
 .workflow-step { display: flex; align-items: center; gap: 9px; min-width: 190px; color: #64748b; }
 .workflow-step strong, .workflow-step small { display: block; }
@@ -733,7 +747,11 @@ onUnmounted(() => { if (hubConnection) hubConnection.stop(); });
 .portion-export-status { display: block; width: max-content; margin-top: 6px; padding: 3px 7px; border-radius: 4px; font-size: 10px; font-weight: 800; }
 .portion-exported { color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; }
 .portion-waiting { color: #92400e; background: #fef3c7; border: 1px solid #fde68a; }
-.variant-grid { grid-template-columns: minmax(210px, 1.5fr) 140px 110px 160px 150px; min-width: 790px; }
+.variant-grid { grid-template-columns: minmax(220px, 1.7fr) 115px 115px 110px 165px 125px; min-width: 910px; }
+.actions-cell .row-action { display: grid; place-items: center; width: 36px; height: 40px; flex: 0 0 auto; }
+.actions-cell { flex-wrap: wrap; }
+.content-section { border-radius: 0; border-left: 0; border-right: 0; }
+@media (max-width: 650px) { .daily-portions-page { padding: 8px 0; }.page-header { padding: 12px 10px; gap: 14px; }.date-picker-wrap { gap: 0; }.date-picker-wrap input { min-width: 0; width: 130px; }.food-groups { padding: 8px; }.section-toolbar { padding: 14px 10px; }.plan-overview { margin-inline: 8px; } }
 .row-out-of-stock { background-color: #fff1f2; }
 .row-out-of-stock:hover { background-color: #ffe4e6; }
 .plan-breakdown { display: block; margin-top: 4px; color: #64748b; white-space: normal; }

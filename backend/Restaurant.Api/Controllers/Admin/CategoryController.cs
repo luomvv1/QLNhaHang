@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
@@ -10,6 +11,7 @@ namespace Restaurant.Api.Controllers.Admin;
 /// Sử dụng trực tiếp Entity Model: FoodCategory
 /// </summary>
 [Route("api/admin/category")]
+[Authorize(Roles = "admin,manager")]
 [ApiController]
 public class CategoryController : ControllerBase
 {
@@ -36,7 +38,21 @@ public class CategoryController : ControllerBase
                 c.CategoryName, 
                 c.Description,
                 c.SortOrder,
-                c.IsActive
+                c.IsActive,
+                FoodCount = c.Foods.Count(f => f.IsActive),
+                TotalFoodCount = c.Foods.Count,
+                SampleFoods = c.Foods
+                    .Where(f => f.IsActive)
+                    .OrderByDescending(f => f.FoodId)
+                    .Take(4)
+                    .Select(f => new 
+                    {
+                        f.FoodId,
+                        f.FoodName,
+                        f.ImageUrl,
+                        f.MinPrice
+                    })
+                    .ToList()
             })
             .ToListAsync();
 
@@ -131,5 +147,104 @@ public class CategoryController : ControllerBase
         await _dbContext.SaveChangesAsync();
 
         return Ok(new { success = true, message = "Xóa danh mục thành công!" });
+    }
+
+    /// <summary>
+    /// [DELETE] Xóa vĩnh viễn danh mục (hỗ trợ chuyển món sang danh mục khác hoặc xóa luôn toàn bộ món).
+    /// </summary>
+    [HttpDelete("permanent-delete")]
+    public async Task<IActionResult> PermanentDeleteCategory(
+        [FromQuery] int categoryId, 
+        [FromQuery] int? transferToCategoryId = null, 
+        [FromQuery] bool deleteFoods = false)
+    {
+        var category = await _dbContext.FoodCategories
+            .Include(c => c.Foods)
+                .ThenInclude(f => f.FoodVariants)
+            .FirstOrDefaultAsync(c => c.CategoryId == categoryId);
+
+        if (category == null)
+            return NotFound(new { success = false, message = "Không tìm thấy danh mục món ăn này!" });
+
+        var foods = category.Foods.ToList();
+
+        if (!foods.Any())
+        {
+            _dbContext.FoodCategories.Remove(category);
+            await _dbContext.SaveChangesAsync();
+            return Ok(new { success = true, message = $"Đã xóa danh mục \"{category.CategoryName}\" thành công!" });
+        }
+
+        if (transferToCategoryId.HasValue && transferToCategoryId.Value > 0)
+        {
+            var targetCategory = await _dbContext.FoodCategories.FindAsync(transferToCategoryId.Value);
+            if (targetCategory == null)
+                return BadRequest(new { success = false, message = "Danh mục đích để chuyển món không tồn tại!" });
+
+            foreach (var f in foods)
+            {
+                f.CategoryId = targetCategory.CategoryId;
+                f.UpdatedAt = DateTime.UtcNow;
+            }
+            _dbContext.FoodCategories.Remove(category);
+            await _dbContext.SaveChangesAsync();
+
+            return Ok(new { success = true, message = $"Đã chuyển {foods.Count} món ăn sang \"{targetCategory.CategoryName}\" và xóa danh mục \"{category.CategoryName}\" thành công!" });
+        }
+        else if (deleteFoods)
+        {
+            var foodIds = foods.Select(f => f.FoodId).ToList();
+
+            // Kiểm tra món có trong đơn đang phục vụ không
+            var hasActiveOrder = await _dbContext.OrderItems
+                .AnyAsync(oi => foodIds.Contains(oi.FoodId)
+                    && oi.Order.OrderStatus != "completed" 
+                    && oi.Order.OrderStatus != "cancelled" 
+                    && oi.ItemStatus != "cancelled");
+            if (hasActiveOrder)
+                return BadRequest(new { success = false, message = "Một số món trong danh mục này đang nằm trong đơn gọi món đang phục vụ khách. Không thể xóa!" });
+
+            // Xóa BOM
+            var boms = await _dbContext.FoodIngredients.Where(fi => foodIds.Contains(fi.FoodId)).ToListAsync();
+            _dbContext.FoodIngredients.RemoveRange(boms);
+
+            // Xóa Portions
+            var portions = await _dbContext.DailyPortionControls.Where(dp => foodIds.Contains(dp.FoodId)).ToListAsync();
+            _dbContext.DailyPortionControls.RemoveRange(portions);
+
+            // Xóa Variants
+            var variants = await _dbContext.FoodVariants.Where(fv => foodIds.Contains(fv.FoodId)).ToListAsync();
+            _dbContext.FoodVariants.RemoveRange(variants);
+
+            // Xóa Foods
+            _dbContext.Foods.RemoveRange(foods);
+
+            // Xóa Category
+            _dbContext.FoodCategories.Remove(category);
+            await _dbContext.SaveChangesAsync();
+
+            return Ok(new { success = true, message = $"Đã xóa danh mục \"{category.CategoryName}\" cùng toàn bộ {foods.Count} món ăn thành công!" });
+        }
+        else
+        {
+            return BadRequest(new { success = false, message = $"Danh mục đang có {foods.Count} món ăn. Vui lòng chọn chuyển món sang danh mục khác hoặc chọn xóa kèm các món!" });
+        }
+    }
+
+    /// <summary>
+    /// [PATCH] Mở lại hoạt động cho danh mục bị ẩn
+    /// </summary>
+    [HttpPatch("reactivate")]
+    public async Task<IActionResult> ReactivateCategory([FromQuery] int categoryId)
+    {
+        var category = await _dbContext.FoodCategories.FindAsync(categoryId);
+        if (category == null)
+            return NotFound(new { success = false, message = "Danh mục không tồn tại!" });
+
+        category.IsActive = true;
+        category.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new { success = true, message = $"Đã mở lại hoạt động cho danh mục \"{category.CategoryName}\" thành công!" });
     }
 }

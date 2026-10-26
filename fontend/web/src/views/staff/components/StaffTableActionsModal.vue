@@ -79,17 +79,24 @@
       </div>
 
       <div class="modal-body-staff p-3 p-md-4">
-        <!-- Active Table Context Notice -->
-        <div class="p-2 px-3 rounded-3 bg-light border mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <div class="small text-muted">
-            Bàn gốc đang thao tác: <strong class="text-dark">{{ activeTable?.tableName }}</strong> ({{ activeTable?.areaName }} · Sức chứa: {{ activeTable?.capacity }} chỗ)
+        <!-- Active Table Context Notice & Area Lock Rule -->
+        <div class="p-3 rounded-3 border mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background: #f8fafc; border-color: #e2e8f0 !important;">
+          <div class="d-flex align-items-center gap-2">
+            <div class="p-2 bg-primary-subtle rounded-2 text-primary">
+              <span class="fs-5">📍</span>
+            </div>
+            <div>
+              <div class="small fw-bold text-dark">
+                Bàn gốc: <span class="text-primary">{{ activeTable?.tableName }}</span> · Khu vực: <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ activeTable?.areaName || 'Sảnh chung' }}</span>
+              </div>
+              <div class="text-muted" style="font-size: 0.75rem;">
+                Chỉ hiển thị bàn trong cùng khu vực để đảm bảo tính khả thi khi phục vụ
+              </div>
+            </div>
           </div>
-          <span class="badge bg-primary-subtle text-primary border border-primary-subtle small">
-            Đơn hiện tại: #{{ currentOrder?.orderId || 'Đang mở' }}
+          <span class="badge bg-primary text-white px-2 py-1" style="font-size: 0.7rem;">
+            🔒 Bắt buộc cùng khu vực
           </span>
-        </div>
-        <div class="alert alert-info py-2 px-3 small mb-3">
-          Chỉ hiển thị bàn cùng khu vực với bàn gốc để tránh gộp sai khu vực.
         </div>
 
         <!-- Filter Pills -->
@@ -109,7 +116,7 @@
               :class="tableFilter === 'empty' ? 'btn-success text-white' : 'btn-light border'"
               @click="tableFilter = 'empty'"
             >
-              🟢 Bàn trống ({{ emptyTables.length }})
+              🟢 Bàn trống ({{ candidateEmptyTables.length }})
             </button>
             <button
               type="button"
@@ -117,7 +124,7 @@
               :class="tableFilter === 'serving' ? 'btn-warning text-dark' : 'btn-light border'"
               @click="tableFilter = 'serving'"
             >
-              🟡 Bàn đang phục vụ ({{ otherServingTables.length }})
+              🟡 Bàn đang phục vụ ({{ candidateServingTables.length }})
             </button>
           </div>
 
@@ -129,7 +136,8 @@
         <!-- Empty State if no candidates -->
         <div v-if="displayTables.length === 0" class="text-center p-4 border rounded-3 bg-light my-2">
           <div class="fs-2 mb-2">🪑</div>
-          <div class="fw-bold text-muted small">Không tìm thấy bàn nào phù hợp với bộ lọc hiện tại.</div>
+          <div class="fw-bold text-dark small mb-1">Không tìm thấy bàn phù hợp trong khu vực "{{ activeTable?.areaName }}"</div>
+          <div class="text-muted small">Hiện không có bàn nào khác trong khu vực này thỏa mãn điều kiện để ghép hoặc gộp.</div>
         </div>
 
         <!-- Visual Table Cards Grid -->
@@ -259,7 +267,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close-switch', 'close-merge', 'switched', 'merged']);
 
-const apiBase = 'http://localhost:5079/api/staff/orders';
+const apiBase = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/staff/orders`;
 const isSubmitting = ref(false);
 
 // Switch state
@@ -293,12 +301,15 @@ const allCandidateTables = computed(() => {
   return result.filter(table => (table.areaName || 'Sảnh chung').trim().toLowerCase() === activeArea);
 });
 
+const candidateEmptyTables = computed(() => allCandidateTables.value.filter(t => t.tableStatus === 'empty'));
+const candidateServingTables = computed(() => allCandidateTables.value.filter(t => t.tableStatus === 'serving'));
+
 const displayTables = computed(() => {
   if (tableFilter.value === 'empty') {
-    return allCandidateTables.value.filter(t => t.tableStatus === 'empty');
+    return candidateEmptyTables.value;
   }
   if (tableFilter.value === 'serving') {
-    return allCandidateTables.value.filter(t => t.tableStatus === 'serving');
+    return candidateServingTables.value;
   }
   return allCandidateTables.value;
 });

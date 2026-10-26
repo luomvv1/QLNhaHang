@@ -300,7 +300,7 @@ public class AdminReservationController : ControllerBase
         // Gửi SignalR
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReservationUpdated", new { reservationId = reservation.ReservationId, eventType = "created" });
+            await _hubContext.PublishAsync(_dbContext, "ReservationUpdated", new { reservationId = reservation.ReservationId, eventType = "created" });
         }
         catch { }
 
@@ -328,11 +328,29 @@ public class AdminReservationController : ControllerBase
         reservation.ReservationStatus = "confirmed";
         reservation.ConfirmedBy = GetCurrentUserId();
         reservation.UpdatedAt = DateTime.UtcNow;
+
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            ActionName = "reservation_confirmed",
+            EntityName = "Reservation",
+            EntityId = reservation.ReservationId.ToString(),
+            OldData = System.Text.Json.JsonSerializer.Serialize(new { status = "pending" }),
+            NewData = System.Text.Json.JsonSerializer.Serialize(new {
+                status = "confirmed",
+                customerName = reservation.CustomerName,
+                phone = reservation.CustomerPhone,
+                guestCount = reservation.GuestCount,
+                reservationDate = reservation.ReservationDate
+            }),
+            CreatedAt = DateTime.UtcNow
+        });
+
         await _dbContext.SaveChangesAsync();
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReservationUpdated", new { reservationId = id, eventType = "confirmed" });
+            await _hubContext.PublishAsync(_dbContext, "ReservationUpdated", new { reservationId = id, eventType = "confirmed" });
         }
         catch { }
 
@@ -384,7 +402,7 @@ public class AdminReservationController : ControllerBase
         var targetDate = reservation.ReservationDate.Date;
         var start = targetDate;
         var end = start.AddDays(1);
-        var isToday = targetDate == DateTime.Today;
+        var isToday = targetDate == DateTime.UtcNow.AddHours(7).Date;
 
         // Tìm các phiếu khác trong cùng ngày targetDate
         var sameDayReservations = await _dbContext.Reservations
@@ -491,8 +509,8 @@ public class AdminReservationController : ControllerBase
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReservationUpdated", new { reservationId = id, eventType = "table_assigned" });
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated");
+            await _hubContext.PublishAsync(_dbContext, "ReservationUpdated", new { reservationId = id, eventType = "table_assigned" });
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated");
         }
         catch { }
 
@@ -671,13 +689,13 @@ public class AdminReservationController : ControllerBase
         // 5. Phát sóng SignalR
         try
         {
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated", new
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated", new
             {
                 orderId = createdOrderId,
                 tableId = primaryTable.TableId,
                 eventType = "check_in"
             });
-            await _hubContext.Clients.All.SendAsync("ReservationUpdated", new
+            await _hubContext.PublishAsync(_dbContext, "ReservationUpdated", new
             {
                 reservationId = id,
                 eventType = "checked_in"
@@ -737,12 +755,27 @@ public class AdminReservationController : ControllerBase
             }
         }
 
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            UserId = GetCurrentUserId(),
+            ActionName = "reservation_cancelled",
+            EntityName = "Reservation",
+            EntityId = reservation.ReservationId.ToString(),
+            OldData = System.Text.Json.JsonSerializer.Serialize(new { status = "pending" }),
+            NewData = System.Text.Json.JsonSerializer.Serialize(new {
+                status = "cancelled",
+                customerName = reservation.CustomerName,
+                reason = request?.Reason
+            }),
+            CreatedAt = DateTime.UtcNow
+        });
+
         await _dbContext.SaveChangesAsync();
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReservationUpdated", new { reservationId = id, eventType = "cancelled" });
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated");
+            await _hubContext.PublishAsync(_dbContext, "ReservationUpdated", new { reservationId = id, eventType = "cancelled" });
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated");
         }
         catch { }
 
@@ -780,8 +813,8 @@ public class AdminReservationController : ControllerBase
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReservationUpdated", new { reservationId = id, eventType = "no_show" });
-            await _hubContext.Clients.All.SendAsync("StaffOrderUpdated");
+            await _hubContext.PublishAsync(_dbContext, "ReservationUpdated", new { reservationId = id, eventType = "no_show" });
+            await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated");
         }
         catch { }
 

@@ -562,284 +562,322 @@
           </div>
 
           <!-- ============================================================== -->
-          <!-- CHẾ ĐỘ 1: XẾP 1 BÀN THEO SỐ NGƯỜI (SINGLE TABLE MODE)           -->
+          <!-- BỐ CỤC CHỌN KHU VỰC DẠNG SIDEBAR + BÀN ĂN WORKSPACE (UI/UX PRO)   -->
           <!-- ============================================================== -->
-          <div v-if="assignMode === 'single'">
-            <!-- Status banner when NO single table is large enough -->
-            <div v-if="singleEligibleTables.length === 0" class="alert alert-warning border border-warning-subtle rounded-3 p-3 mb-3 shadow-xs">
-              <div class="d-flex align-items-start gap-2">
-                <span class="fs-4">⚠️</span>
-                <div>
-                  <h6 class="fw-bold text-dark mb-1">
-                    Không có bàn đơn nào đủ {{ selectedReservation?.guestCount }} chỗ!
-                  </h6>
-                  <p class="small text-muted mb-2">
-                    Hiện tại tất cả các bàn trống đều có sức chứa nhỏ hơn <strong>{{ selectedReservation?.guestCount }} khách</strong> (hoặc các bàn lớn đều đã được đặt). Vui lòng chuyển sang chế độ <strong>Gộp nhiều bàn trống</strong> để kết hợp 2 hoặc nhiều bàn lại với nhau.
-                  </p>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-primary fw-bold rounded-pill px-3 py-1 shadow-xs"
-                    @click="assignMode = 'merge'"
-                  >
-                    👉 Chuyển Sang Chế Độ Gộp Nhiều Bàn Trống
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Single mode guide and selection info -->
-            <div v-else class="p-2 px-3 rounded-3 bg-light border mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-              <div class="small text-muted">
-                Ưu tiên gợi ý các bàn trống có sức chứa từ <strong>{{ selectedReservation?.guestCount }} chỗ trở lên</strong> (sắp xếp bàn vừa vặn nhất lên đầu):
-              </div>
-              <div v-if="selectedSingleTable" class="badge bg-primary px-3 py-1 rounded-pill fw-bold">
-                ✓ Đã chọn: {{ selectedSingleTable.tableName }} ({{ selectedSingleTable.capacity }} chỗ)
-              </div>
-            </div>
-
-            <!-- Area Tabs -->
-            <div class="area-filter-tabs d-flex gap-1 mb-3 overflow-auto pb-1" v-if="singleEligibleTables.length > 0">
-              <button
-                type="button"
-                class="btn btn-sm area-tab-btn"
-                :class="{ 'active': selectedAreaTab === 'all' }"
-                @click="selectedAreaTab = 'all'"
-              >
-                Tất cả khu vực ({{ singleEligibleTables.length }})
-              </button>
-              <button
-                v-for="area in areaList"
-                :key="area"
-                type="button"
-                class="btn btn-sm area-tab-btn"
-                :class="{ 'active': selectedAreaTab === area }"
-                @click="selectedAreaTab = area"
-              >
-                {{ area }} ({{ getSingleAreaCount(area) }})
-              </button>
-            </div>
-
-            <!-- Single Tables Grid -->
-            <div v-if="filteredSingleTables.length > 0" class="row g-3">
-              <div
-                v-for="t in filteredSingleTables"
-                :key="t.tableId"
-                class="col-12 col-sm-6 col-md-4"
-              >
-                <div
-                  class="table-selection-card p-3 rounded-3 border cursor-pointer position-relative h-100"
-                  :class="{ 'active-selected-table': selectedSingleTableId === t.tableId }"
-                  @click="selectedSingleTableId = t.tableId"
-                >
-                  <!-- Selected badge -->
-                  <div v-if="selectedSingleTableId === t.tableId" class="selected-check-badge">
-                    ✓
-                  </div>
-
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                      <span class="badge bg-secondary-subtle text-dark border small fw-bold font-monospace">
-                        {{ t.tableCode }}
-                      </span>
-                      <h6 class="fw-black text-dark mb-0 mt-1">
-                        {{ t.tableName }}
-                      </h6>
-                    </div>
-                    <span class="badge bg-light text-muted border small">
-                      {{ t.areaName }}
-                    </span>
-                  </div>
-
-                  <!-- Capacity & Best Fit Badge -->
-                  <div class="d-flex align-items-center justify-content-between p-2 rounded bg-light border my-2">
-                    <div class="d-flex align-items-center gap-1">
-                      <span class="fs-6">👥</span>
-                      <span class="fw-bold text-dark">{{ t.capacity }} Chỗ</span>
-                    </div>
-                    <span
-                      class="badge small"
-                      :class="t.capacity === selectedReservation?.guestCount ? 'bg-success text-white' : 'bg-success-subtle text-success border border-success-subtle'"
-                    >
-                      {{ t.capacity === selectedReservation?.guestCount ? '⭐ Vừa khít số khách' : `+${t.capacity - (selectedReservation?.guestCount || 0)} chỗ thừa` }}
-                    </span>
-                  </div>
-
-                  <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top small">
-                    <span v-if="selectedSingleTableId === t.tableId" class="text-primary fw-bold">
-                      ✓ Đang chọn bàn này
-                    </span>
-                    <span v-else class="text-muted">
-                      Bấm để chọn bàn
-                    </span>
-                    <span class="badge bg-success-subtle text-success border" style="font-size: 0.65rem;">
-                      🟢 Bàn trống
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ============================================================== -->
-          <!-- CHẾ ĐỘ 2: GỘP NHIỀU BÀN TRỐNG (MERGE EMPTY TABLES MODE)        -->
-          <!-- ============================================================== -->
-          <div v-if="assignMode === 'merge'">
-            <!-- Multi-Table Live Summary Card -->
-            <!-- Area Selection for Merge Mode (Strictly single area) -->
-            <div class="p-2 px-3 rounded-3 bg-light border mb-3">
-              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                <label class="form-label fw-bold small text-dark m-0 d-flex align-items-center gap-1">
-                  <span>📍</span> BƯỚC 1: CHỌN KHU VỰC CẦN GỘP BÀN:
-                </label>
-                <span class="badge bg-purple-subtle text-purple border-purple small py-1 px-2">
-                  🔒 Chỉ được gộp các bàn trong cùng một khu vực
+          <div class="assign-layout-container d-flex flex-column flex-md-row gap-3">
+            <!-- 1. SIDEBAR PHÂN KHU VỰC BÀN -->
+            <aside class="area-sidebar-card">
+              <div class="sidebar-header d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
+                <span class="small fw-bold text-uppercase text-dark d-flex align-items-center gap-1" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+                  <span>📍</span> Phân Khu Vực
+                </span>
+                <span class="badge bg-secondary-subtle text-dark border rounded-pill" style="font-size: 0.65rem;">
+                  {{ areaList.length }} khu
                 </span>
               </div>
 
-              <!-- Area Tabs: Strictly by Area, NO "All areas" in Merge Mode -->
-              <div class="area-filter-tabs d-flex gap-2 overflow-auto pb-1">
+              <!-- Danh sách khu vực khi ở Chế độ 1 Bàn Đơn -->
+              <div v-if="assignMode === 'single'" class="area-sidebar-list">
+                <button
+                  type="button"
+                  class="area-sidebar-item"
+                  :class="{ 'active': selectedAreaTab === 'all' }"
+                  @click="selectedAreaTab = 'all'"
+                >
+                  <div class="d-flex align-items-center gap-2 text-truncate">
+                    <span class="area-item-icon">🏢</span>
+                    <span class="area-item-name text-truncate">Tất cả khu vực</span>
+                  </div>
+                  <span class="badge area-item-badge" :class="singleEligibleTables.length > 0 ? 'badge-has-tables' : 'badge-empty'">
+                    {{ singleEligibleTables.length }}
+                  </span>
+                </button>
+
                 <button
                   v-for="area in areaList"
                   :key="area"
                   type="button"
-                  class="btn btn-sm area-tab-btn px-3 py-2 fw-bold d-inline-flex align-items-center gap-1"
-                  :class="{ 'active': selectedMergeArea === area }"
-                  @click="changeMergeArea(area)"
+                  class="area-sidebar-item"
+                  :class="{ 'active': selectedAreaTab === area }"
+                  @click="selectedAreaTab = area"
                 >
-                  <span>📍</span>
-                  <span>{{ area }}</span>
-                  <span class="badge rounded-pill bg-light text-dark ms-1">
-                    {{ getEmptyAreaCount(area) }} bàn trống
+                  <div class="d-flex align-items-center gap-2 text-truncate">
+                    <span class="area-item-icon">📍</span>
+                    <span class="area-item-name text-truncate">{{ area }}</span>
+                  </div>
+                  <span class="badge area-item-badge" :class="getSingleAreaCount(area) > 0 ? 'badge-has-tables' : 'badge-empty'">
+                    {{ getSingleAreaCount(area) }} bàn
                   </span>
                 </button>
               </div>
 
-              <div class="small text-muted mt-2 pt-2 border-top d-flex align-items-center gap-1">
-                <span>👉 Đang xem các bàn trống tại:</span>
-                <strong class="text-dark">{{ selectedMergeArea || 'Chưa chọn khu vực' }}</strong>
-                <span class="text-success ms-2">• Chỉ hiển thị các bàn cùng khu vực này để tránh gộp nhầm.</span>
-              </div>
-            </div>
-
-            <!-- Multi-Table Live Summary Card -->
-            <div class="selected-tables-summary p-3 rounded-3 bg-light border mb-3">
-              <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
-                <div>
-                  <div class="small text-muted fw-semibold mb-1 d-flex align-items-center gap-2">
-                    <span>CÁC BÀN ĐÃ CHỌN ĐỂ GỘP ({{ selectedMergeTableIds.length }} BÀN):</span>
-                    <span v-if="selectedMergeArea" class="badge bg-purple text-white">
-                      📍 Khu vực: {{ selectedMergeArea }}
-                    </span>
-                  </div>
-                  <div v-if="selectedMergeTableIds.length > 0" class="d-flex align-items-center gap-1 flex-wrap">
-                    <span
-                      v-for="st in selectedMergeTables"
-                      :key="st.tableId"
-                      class="badge px-2 py-1 rounded-pill fw-bold border bg-purple-subtle text-purple border-purple d-inline-flex align-items-center gap-1"
-                    >
-                      <span>🟢</span>
-                      {{ st.tableName }} ({{ st.capacity }} chỗ)
-                      <span role="button" class="ms-1 text-danger cursor-pointer" @click.stop="toggleMergeTableSelection(st.tableId)">×</span>
-                    </span>
-                    <button
-                      type="button"
-                      class="btn btn-xs btn-outline-danger ms-2 rounded-pill px-2"
-                      @click="clearMergeSelections"
-                    >
-                      ✕ Bỏ chọn tất cả
-                    </button>
-                  </div>
-                  <div v-else class="text-danger small fst-italic">
-                    Chưa chọn bàn nào. Bấm vào các thẻ bàn bên dưới để chọn các bàn cần gộp trong khu vực <strong>{{ selectedMergeArea }}</strong>.
-                  </div>
-                </div>
-
-                <div class="text-md-end flex-shrink-0" v-if="selectedMergeTableIds.length > 0">
-                  <div class="d-flex align-items-center gap-2 justify-content-md-end">
-                    <span class="small text-muted">Tổng sức chứa gộp:</span>
-                    <span class="fs-6 fw-black" :class="totalMergeCapacity >= (selectedReservation?.guestCount || 0) ? 'text-success' : 'text-danger'">
-                      {{ totalMergeCapacity }} / {{ selectedReservation?.guestCount }} chỗ
-                    </span>
-                  </div>
-                  <div class="small mt-1">
-                    <span v-if="totalMergeCapacity >= (selectedReservation?.guestCount || 0)" class="badge bg-success-subtle text-success border border-success">
-                      ✅ Đủ chỗ (+{{ totalMergeCapacity - (selectedReservation?.guestCount || 0) }} chỗ thừa)
-                    </span>
-                    <span v-else class="badge bg-danger-subtle text-danger border border-danger">
-                      ⚠️ Còn thiếu {{ (selectedReservation?.guestCount || 0) - totalMergeCapacity }} chỗ
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Merge Tables Grid -->
-            <div v-if="filteredMergeTables.length === 0" class="empty-tables-box p-4 text-center rounded-3 border bg-light my-3">
-              <div class="fs-1 mb-2">🪑🔍</div>
-              <h6 class="fw-bold text-dark mb-1">Không tìm thấy bàn trống nào</h6>
-              <p class="text-muted small mb-0">Không có bàn trống nào ở khu vực được chọn.</p>
-            </div>
-
-            <div v-else class="row g-3">
-              <div
-                v-for="t in filteredMergeTables"
-                :key="t.tableId"
-                class="col-12 col-sm-6 col-md-4"
-              >
-                <div
-                  class="table-selection-card p-3 rounded-3 border cursor-pointer position-relative h-100"
-                  :class="{ 'active-selected-table': selectedMergeTableIds.includes(t.tableId) }"
-                  @click="toggleMergeTableSelection(t.tableId)"
+              <!-- Danh sách khu vực khi ở Chế độ Gộp Bàn (Bắt buộc chọn 1 khu vực cụ thể) -->
+              <div v-else class="area-sidebar-list">
+                <button
+                  v-for="area in areaList"
+                  :key="area"
+                  type="button"
+                  class="area-sidebar-item"
+                  :class="{ 'active': selectedMergeArea === area }"
+                  @click="changeMergeArea(area)"
                 >
-                  <!-- Checked badge -->
-                  <div v-if="selectedMergeTableIds.includes(t.tableId)" class="selected-check-badge">
-                    ✓
+                  <div class="d-flex align-items-center gap-2 text-truncate">
+                    <span class="area-item-icon">📍</span>
+                    <div class="text-start text-truncate">
+                      <div class="area-item-name text-truncate">{{ area }}</div>
+                      <div class="area-item-sub">{{ getEmptyAreaCount(area) }} bàn trống</div>
+                    </div>
                   </div>
+                  <span class="badge area-item-badge" :class="getEmptyAreaCount(area) > 0 ? 'badge-has-tables' : 'badge-empty'">
+                    {{ getEmptyAreaCount(area) }}
+                  </span>
+                </button>
+              </div>
 
-                  <div class="d-flex justify-content-between align-items-start mb-2">
+              <!-- Gợi ý an toàn khi gộp bàn ở đáy sidebar -->
+              <div v-if="assignMode === 'merge'" class="sidebar-safety-hint mt-auto pt-3">
+                <div class="sidebar-safety-card">
+                  <div class="d-flex align-items-start gap-1-5">
+                    <span class="fs-6 flex-shrink-0">🔒</span>
+                    <div style="font-size: 0.72rem; line-height: 1.35;" class="text-dark">
+                      <strong>Ràng buộc an toàn:</strong><br>
+                      Chỉ được gộp các bàn trong <strong>cùng 1 khu vực</strong> để tránh gộp nhầm và đảm bảo phục vụ chu đáo.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- 2. WORKSPACE BÀN ĂN (BÊN PHẢI) -->
+            <div class="area-workspace-panel flex-grow-1 min-w-0">
+              <!-- ============================================================== -->
+              <!-- CHẾ ĐỘ 1: XẾP 1 BÀN THEO SỐ NGƯỜI (SINGLE TABLE MODE)           -->
+              <!-- ============================================================== -->
+              <div v-if="assignMode === 'single'">
+                <!-- Status banner when NO single table is large enough -->
+                <div v-if="singleEligibleTables.length === 0" class="alert alert-warning border border-warning-subtle rounded-3 p-3 mb-3 shadow-xs">
+                  <div class="d-flex align-items-start gap-2">
+                    <span class="fs-4">⚠️</span>
                     <div>
-                      <span class="badge bg-secondary-subtle text-dark border small fw-bold font-monospace">
-                        {{ t.tableCode }}
-                      </span>
-                      <h6 class="fw-black text-dark mb-0 mt-1">
-                        {{ t.tableName }}
+                      <h6 class="fw-bold text-dark mb-1">
+                        Không có bàn đơn nào đủ {{ selectedReservation?.guestCount }} chỗ!
                       </h6>
+                      <p class="small text-muted mb-2">
+                        Hiện tại tất cả các bàn trống đều có sức chứa nhỏ hơn <strong>{{ selectedReservation?.guestCount }} khách</strong> (hoặc các bàn lớn đều đã được đặt). Vui lòng chuyển sang chế độ <strong>Gộp nhiều bàn trống</strong> để kết hợp 2 hoặc nhiều bàn lại với nhau.
+                      </p>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-primary fw-bold rounded-pill px-3 py-1 shadow-xs"
+                        @click="assignMode = 'merge'"
+                      >
+                        👉 Chuyển Sang Chế Độ Gộp Nhiều Bàn Trống
+                      </button>
                     </div>
-                    <span class="badge bg-light text-muted border small">
-                      {{ t.areaName }}
-                    </span>
                   </div>
+                </div>
 
-                  <div class="d-flex align-items-center justify-content-between p-2 rounded bg-light border my-2">
-                    <div class="d-flex align-items-center gap-1">
-                      <span class="fs-6">👥</span>
-                      <span class="fw-bold text-dark">{{ t.capacity }} Chỗ</span>
+                <!-- Single mode guide and selection info -->
+                <div v-else class="p-2-5 px-3 rounded-3 bg-light border mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                  <div class="small text-muted">
+                    Đang xem: <strong>{{ selectedAreaTab === 'all' ? 'Tất cả khu vực' : selectedAreaTab }}</strong> ({{ filteredSingleTables.length }} bàn đủ từ {{ selectedReservation?.guestCount }} chỗ):
+                  </div>
+                  <div v-if="selectedSingleTable" class="badge bg-primary px-3 py-1 rounded-pill fw-bold">
+                    ✓ Đã chọn: {{ selectedSingleTable.tableName }} ({{ selectedSingleTable.capacity }} chỗ)
+                  </div>
+                </div>
+
+                <!-- Single Tables Grid -->
+                <div v-if="filteredSingleTables.length > 0" class="row g-2-5">
+                  <div
+                    v-for="t in filteredSingleTables"
+                    :key="t.tableId"
+                    class="col-12 col-sm-6 col-lg-4"
+                  >
+                    <div
+                      class="table-selection-card p-3 rounded-3 border cursor-pointer position-relative h-100"
+                      :class="{ 'active-selected-table': selectedSingleTableId === t.tableId }"
+                      @click="selectedSingleTableId = t.tableId"
+                    >
+                      <!-- Selected badge -->
+                      <div v-if="selectedSingleTableId === t.tableId" class="selected-check-badge">
+                        ✓
+                      </div>
+
+                      <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                          <span class="badge bg-secondary-subtle text-dark border small fw-bold font-monospace">
+                            {{ t.tableCode }}
+                          </span>
+                          <h6 class="fw-black text-dark mb-0 mt-1">
+                            {{ t.tableName }}
+                          </h6>
+                        </div>
+                        <span class="badge bg-light text-muted border small">
+                          {{ t.areaName }}
+                        </span>
+                      </div>
+
+                      <!-- Capacity & Best Fit Badge -->
+                      <div class="d-flex align-items-center justify-content-between p-2 rounded bg-light border my-2">
+                        <div class="d-flex align-items-center gap-1">
+                          <span class="fs-6">👥</span>
+                          <span class="fw-bold text-dark">{{ t.capacity }} Chỗ</span>
+                        </div>
+                        <span
+                          class="badge small"
+                          :class="t.capacity === selectedReservation?.guestCount ? 'bg-success text-white' : 'bg-success-subtle text-success border border-success-subtle'"
+                        >
+                          {{ t.capacity === selectedReservation?.guestCount ? '⭐ Vừa khít số khách' : `+${t.capacity - (selectedReservation?.guestCount || 0)} chỗ thừa` }}
+                        </span>
+                      </div>
+
+                      <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top small">
+                        <span v-if="selectedSingleTableId === t.tableId" class="text-primary fw-bold">
+                          ✓ Đang chọn bàn này
+                        </span>
+                        <span v-else class="text-muted">
+                          Bấm để chọn bàn
+                        </span>
+                        <span class="badge bg-success-subtle text-success border" style="font-size: 0.65rem;">
+                          🟢 Bàn trống
+                        </span>
+                      </div>
                     </div>
-                    <span class="badge bg-success-subtle text-success border border-success-subtle small">
-                      🟢 Bàn trống
-                    </span>
                   </div>
+                </div>
 
-                  <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top small">
-                    <span v-if="selectedMergeTableIds.includes(t.tableId)" class="text-purple fw-bold">
-                      ✓ Đã chọn (Click để bỏ)
-                    </span>
-                    <span v-else class="text-muted">
-                      Bấm để gộp bàn này
-                    </span>
-                    <span class="badge bg-light text-muted border" style="font-size: 0.65rem;">
-                      Khả dụng
-                    </span>
+                <!-- Empty state if no single tables in this area -->
+                <div v-else-if="singleEligibleTables.length > 0" class="empty-tables-box p-4 text-center rounded-3 border bg-light my-2">
+                  <div class="fs-1 mb-2">🪑🔍</div>
+                  <h6 class="fw-bold text-dark mb-1">Không có bàn trống đủ chỗ</h6>
+                  <p class="text-muted small mb-0">Không tìm thấy bàn đơn nào đủ {{ selectedReservation?.guestCount }} khách tại khu vực <strong>{{ selectedAreaTab }}</strong>.</p>
+                </div>
+              </div>
+
+              <!-- ============================================================== -->
+              <!-- CHẾ ĐỘ 2: GỘP NHIỀU BÀN TRỐNG (MERGE EMPTY TABLES MODE)        -->
+              <!-- ============================================================== -->
+              <div v-if="assignMode === 'merge'">
+                <!-- Multi-Table Live Summary Card -->
+                <div class="selected-tables-summary p-3 rounded-3 bg-light border mb-3">
+                  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+                    <div>
+                      <div class="small text-muted fw-semibold mb-1 d-flex align-items-center gap-2">
+                        <span>CÁC BÀN ĐÃ CHỌN ĐỂ GỘP ({{ selectedMergeTableIds.length }} BÀN):</span>
+                        <span v-if="selectedMergeArea" class="badge bg-purple text-white">
+                          📍 Khu vực: {{ selectedMergeArea }}
+                        </span>
+                      </div>
+                      <div v-if="selectedMergeTableIds.length > 0" class="d-flex align-items-center gap-1 flex-wrap">
+                        <span
+                          v-for="st in selectedMergeTables"
+                          :key="st.tableId"
+                          class="badge px-2 py-1 rounded-pill fw-bold border bg-purple-subtle text-purple border-purple d-inline-flex align-items-center gap-1"
+                        >
+                          <span>🟢</span>
+                          {{ st.tableName }} ({{ st.capacity }} chỗ)
+                          <span role="button" class="ms-1 text-danger cursor-pointer" @click.stop="toggleMergeTableSelection(st.tableId)">×</span>
+                        </span>
+                        <button
+                          type="button"
+                          class="btn btn-xs btn-outline-danger ms-2 rounded-pill px-2"
+                          @click="clearMergeSelections"
+                        >
+                          ✕ Bỏ chọn tất cả
+                        </button>
+                      </div>
+                      <div v-else class="text-danger small fst-italic">
+                        Chưa chọn bàn nào. Bấm vào các thẻ bàn bên dưới để chọn các bàn cần gộp trong khu vực <strong>{{ selectedMergeArea }}</strong>.
+                      </div>
+                    </div>
+
+                    <div class="text-md-end flex-shrink-0" v-if="selectedMergeTableIds.length > 0">
+                      <div class="d-flex align-items-center gap-2 justify-content-md-end">
+                        <span class="small text-muted">Tổng sức chứa gộp:</span>
+                        <span class="fs-6 fw-black" :class="totalMergeCapacity >= (selectedReservation?.guestCount || 0) ? 'text-success' : 'text-danger'">
+                          {{ totalMergeCapacity }} / {{ selectedReservation?.guestCount }} chỗ
+                        </span>
+                      </div>
+                      <div class="small mt-1">
+                        <span v-if="totalMergeCapacity >= (selectedReservation?.guestCount || 0)" class="badge bg-success-subtle text-success border border-success">
+                          ✅ Đủ chỗ (+{{ totalMergeCapacity - (selectedReservation?.guestCount || 0) }} chỗ thừa)
+                        </span>
+                        <span v-else class="badge bg-danger-subtle text-danger border border-danger">
+                          ⚠️ Còn thiếu {{ (selectedReservation?.guestCount || 0) - totalMergeCapacity }} chỗ
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Merge Tables Grid -->
+                <div v-if="filteredMergeTables.length === 0" class="empty-tables-box p-4 text-center rounded-3 border bg-light my-3">
+                  <div class="fs-1 mb-2">🪑🔍</div>
+                  <h6 class="fw-bold text-dark mb-1">Không tìm thấy bàn trống nào</h6>
+                  <p class="text-muted small mb-0">Không có bàn trống nào ở khu vực <strong>{{ selectedMergeArea }}</strong>.</p>
+                </div>
+
+                <div v-else class="row g-2-5">
+                  <div
+                    v-for="t in filteredMergeTables"
+                    :key="t.tableId"
+                    class="col-12 col-sm-6 col-lg-4"
+                  >
+                    <div
+                      class="table-selection-card p-3 rounded-3 border cursor-pointer position-relative h-100"
+                      :class="{ 'active-selected-table': selectedMergeTableIds.includes(t.tableId) }"
+                      @click="toggleMergeTableSelection(t.tableId)"
+                    >
+                      <!-- Checked badge -->
+                      <div v-if="selectedMergeTableIds.includes(t.tableId)" class="selected-check-badge">
+                        ✓
+                      </div>
+
+                      <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                          <span class="badge bg-secondary-subtle text-dark border small fw-bold font-monospace">
+                            {{ t.tableCode }}
+                          </span>
+                          <h6 class="fw-black text-dark mb-0 mt-1">
+                            {{ t.tableName }}
+                          </h6>
+                        </div>
+                        <span class="badge bg-light text-muted border small">
+                          {{ t.areaName }}
+                        </span>
+                      </div>
+
+                      <div class="d-flex align-items-center justify-content-between p-2 rounded bg-light border my-2">
+                        <div class="d-flex align-items-center gap-1">
+                          <span class="fs-6">👥</span>
+                          <span class="fw-bold text-dark">{{ t.capacity }} Chỗ</span>
+                        </div>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle small">
+                          🟢 Bàn trống
+                        </span>
+                      </div>
+
+                      <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top small">
+                        <span v-if="selectedMergeTableIds.includes(t.tableId)" class="text-purple fw-bold">
+                          ✓ Đã chọn (Click để bỏ)
+                        </span>
+                        <span v-else class="text-muted">
+                          Bấm để gộp bàn này
+                        </span>
+                        <span class="badge bg-light text-muted border" style="font-size: 0.65rem;">
+                          Khả dụng
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Modal Footer -->
-      <div class="p-3 px-4 d-flex justify-content-between align-items-center border-top bg-light">
+        <!-- Modal Footer -->
+        <div class="p-3 px-4 d-flex justify-content-between align-items-center border-top bg-light">
           <div class="small text-muted">
             <span v-if="assignMode === 'single'">
               <span v-if="selectedSingleTable">
@@ -872,6 +910,7 @@
               <span v-if="submittingAssign" class="spinner-border spinner-border-sm me-1"></span>
               {{ getAssignSubmitLabel() }}
             </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1271,6 +1310,140 @@
         </div>
       </div>
     </div>
+
+    <!-- ============================================================== -->
+    <!-- CUSTOM DIALOG: XÁC NHẬN / CẢNH BÁO / NHẬP LÝ DO (UI/UX PRO)      -->
+    <!-- Thay thế hoàn toàn alert(), confirm(), prompt() mặc định của web-->
+    <!-- ============================================================== -->
+    <div
+      v-if="confirmState.isOpen"
+      class="modal-backdrop-custom custom-confirm-backdrop"
+      @click.self="handleConfirmDialogCancel"
+    >
+      <div class="custom-confirm-card bg-white shadow-2xl rounded-4 overflow-hidden border">
+        <!-- Header / Icon Graphic -->
+        <div class="p-4 text-center pb-2">
+          <div
+            class="confirm-icon-bubble mx-auto mb-3"
+            :class="`confirm-icon-${confirmState.type}`"
+          >
+            <span>{{ confirmState.icon }}</span>
+          </div>
+
+          <h5 class="fw-bold text-dark mb-1">
+            {{ confirmState.title }}
+          </h5>
+
+          <p class="text-secondary small mb-0 px-2" style="font-size: 0.88rem; line-height: 1.5;">
+            {{ confirmState.message }}
+          </p>
+
+          <p v-if="confirmState.subMessage" class="text-muted small mt-2 mb-0 px-2 fst-italic" style="font-size: 0.78rem;">
+            {{ confirmState.subMessage }}
+          </p>
+        </div>
+
+        <!-- Optional Context Card (when item is provided) -->
+        <div v-if="confirmState.item" class="px-4 py-2">
+          <div class="p-2-5 px-3 rounded-3 bg-light border confirm-item-context">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-bold text-dark small d-flex align-items-center gap-1">
+                <span>👤</span> {{ confirmState.item.customerName }}
+              </span>
+              <span class="badge bg-primary-subtle text-primary border font-monospace small">
+                📞 {{ confirmState.item.customerPhone }}
+              </span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center small text-muted" style="font-size: 0.75rem;">
+              <span>🕒 {{ formatDateTime(confirmState.item.reservationDate) }}</span>
+              <span class="badge bg-warning text-dark fw-bold">👥 {{ confirmState.item.guestCount }} khách</span>
+            </div>
+            <div v-if="confirmState.item.table" class="mt-1 pt-1 border-top small text-success fw-semibold" style="font-size: 0.75rem;">
+              🪑 Bàn: {{ getMergedTableTitle(confirmState.item) || confirmState.item.table.tableName }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Optional Input Field (Prompt Mode for cancellation reason, etc.) -->
+        <div v-if="confirmState.showInput" class="px-4 py-2">
+          <label class="form-label small fw-bold text-dark mb-1">
+            {{ confirmState.inputLabel || 'Lý do:' }}
+          </label>
+          <input
+            type="text"
+            class="form-control form-control-sm mb-2"
+            v-model.trim="confirmState.inputValue"
+            :placeholder="confirmState.inputPlaceholder || 'Nhập nội dung...'"
+            @keyup.enter="handleConfirmDialogSubmit"
+            autofocus
+          />
+          <div class="d-flex flex-wrap gap-1">
+            <button
+              v-for="quick in ['Khách bận đột xuất', 'Khách đổi ngày hẹn', 'Khách không đến', 'Trùng lịch đặt']"
+              :key="quick"
+              type="button"
+              class="btn btn-xs btn-outline-secondary rounded-pill"
+              @click="confirmState.inputValue = quick"
+            >
+              {{ quick }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="p-3 px-4 d-flex justify-content-end gap-2 border-top bg-light mt-2">
+          <button
+            type="button"
+            class="btn btn-light border px-3 rounded-3 fw-semibold text-secondary"
+            @click="handleConfirmDialogCancel"
+          >
+            {{ confirmState.cancelText }}
+          </button>
+          <button
+            type="button"
+            class="btn fw-bold px-4 rounded-3 shadow-sm d-inline-flex align-items-center gap-1"
+            :class="getConfirmButtonClass(confirmState.type)"
+            @click="handleConfirmDialogSubmit"
+          >
+            <span>{{ confirmState.confirmText }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TOAST NOTIFICATION STACK (MODERN GLASSMORPHISM FLOATING)       -->
+    <!-- ============================================================== -->
+    <div class="custom-toast-container" aria-live="polite">
+      <transition-group name="toast-anim">
+        <div
+          v-for="toast in toasts"
+          :key="toast.id"
+          class="custom-toast-item"
+          :class="`toast-${toast.type}`"
+        >
+          <div class="toast-accent-bar" :class="`bar-${toast.type}`"></div>
+          <div class="toast-icon-box" :class="`icon-box-${toast.type}`">
+            <span v-if="toast.type === 'success'">✓</span>
+            <span v-else-if="toast.type === 'error' || toast.type === 'danger'">✕</span>
+            <span v-else-if="toast.type === 'warning'">⚠️</span>
+            <span v-else>ℹ️</span>
+          </div>
+          <div class="toast-content flex-grow-1 min-w-0">
+            <div class="toast-title fw-bold text-dark small">{{ toast.title }}</div>
+            <div class="toast-message text-muted small">{{ toast.message }}</div>
+          </div>
+          <button
+            type="button"
+            class="toast-close-btn"
+            @click="removeToast(toast.id)"
+            title="Đóng"
+          >
+            ✕
+          </button>
+        </div>
+      </transition-group>
+    </div>
   </div>
 </template>
 
@@ -1280,6 +1453,110 @@ import axios from 'axios';
 import signalRService from '@/services/signalr';
 
 const API_BASE = 'http://localhost:5079/api';
+
+// ==============================================================
+// CUSTOM CONFIRM DIALOG & TOAST NOTIFICATION (UI/UX PRO)
+// ==============================================================
+const confirmState = ref({
+  isOpen: false,
+  title: '',
+  message: '',
+  subMessage: '',
+  type: 'primary', // 'primary' | 'success' | 'warning' | 'danger'
+  icon: '📋',
+  confirmText: 'Xác Nhận',
+  cancelText: 'Hủy',
+  item: null,
+  showInput: false,
+  inputLabel: '',
+  inputValue: '',
+  inputPlaceholder: '',
+  resolve: null
+});
+
+function askConfirm(options) {
+  return new Promise((resolve) => {
+    confirmState.value = {
+      isOpen: true,
+      title: options.title || 'Xác nhận thao tác',
+      message: options.message || '',
+      subMessage: options.subMessage || '',
+      type: options.type || 'primary',
+      icon: options.icon || (options.type === 'danger' ? '🛑' : options.type === 'success' ? '🛎️' : options.type === 'warning' ? '⚠️' : '📋'),
+      confirmText: options.confirmText || 'Xác Nhận',
+      cancelText: options.cancelText || 'Hủy',
+      item: options.item || null,
+      showInput: !!options.showInput,
+      inputLabel: options.inputLabel || '',
+      inputValue: options.inputValue || '',
+      inputPlaceholder: options.inputPlaceholder || '',
+      resolve
+    };
+  });
+}
+
+function handleConfirmDialogSubmit() {
+  const res = confirmState.value.resolve;
+  const isInput = confirmState.value.showInput;
+  const val = confirmState.value.inputValue;
+  confirmState.value.isOpen = false;
+  if (res) {
+    if (isInput) {
+      res({ confirmed: true, value: val });
+    } else {
+      res(true);
+    }
+  }
+}
+
+function handleConfirmDialogCancel() {
+  const res = confirmState.value.resolve;
+  const isInput = confirmState.value.showInput;
+  confirmState.value.isOpen = false;
+  if (res) {
+    if (isInput) {
+      res({ confirmed: false, value: null });
+    } else {
+      res(false);
+    }
+  }
+}
+
+function getConfirmButtonClass(type) {
+  switch (type) {
+    case 'danger':
+      return 'btn-danger';
+    case 'success':
+      return 'btn-success text-white';
+    case 'warning':
+      return 'btn-warning text-dark';
+    case 'primary':
+    default:
+      return 'btn-primary';
+  }
+}
+
+const toasts = ref([]);
+let toastCounter = 0;
+
+function showToast(message, type = 'success', title = '') {
+  const id = ++toastCounter;
+  let finalTitle = title;
+  if (!finalTitle) {
+    if (type === 'success') finalTitle = 'Thành công';
+    else if (type === 'error' || type === 'danger') finalTitle = 'Thông báo lỗi';
+    else if (type === 'warning') finalTitle = 'Lưu ý';
+    else finalTitle = 'Thông báo';
+  }
+  toasts.value.push({ id, message, type, title: finalTitle });
+  setTimeout(() => {
+    removeToast(id);
+  }, 4200);
+}
+
+function removeToast(id) {
+  toasts.value = toasts.value.filter(t => t.id !== id);
+}
 
 const reservations = ref([]);
 const availableTables = ref([]);
@@ -1434,11 +1711,19 @@ const mergeAreasAreValid = computed(() => {
   return selectedMergeTables.value.every(table => normalizeArea(table.areaName) === firstArea);
 });
 
-function changeMergeArea(area) {
+async function changeMergeArea(area) {
   if (selectedMergeArea.value === area) return;
   if (selectedMergeTableIds.value.length > 0) {
-    const confirmMsg = `Bạn đang chọn ${selectedMergeTableIds.value.length} bàn tại khu vực "${selectedMergeArea.value}".\n\nQuy tắc hệ thống: Chỉ được gộp các bàn trong CÙNG MỘT khu vực.\nĐổi sang khu vực "${area}" sẽ bỏ chọn các bàn cũ để hiển thị bàn của khu vực mới.\n\nBạn có chắc chắn muốn chuyển khu vực không?`;
-    if (!confirm(confirmMsg)) return;
+    const ok = await askConfirm({
+      title: 'Đổi Khu Vực Gộp Bàn',
+      icon: '📍',
+      type: 'warning',
+      message: `Bạn đang chọn ${selectedMergeTableIds.value.length} bàn tại khu vực "${selectedMergeArea.value}".`,
+      subMessage: `Quy tắc hệ thống: Chỉ được gộp các bàn trong CÙNG MỘT khu vực. Đổi sang khu vực "${area}" sẽ bỏ chọn các bàn cũ để hiển thị bàn của khu vực mới.`,
+      confirmText: `Đổi Sang "${area}"`,
+      cancelText: 'Giữ Khu Vực Cũ'
+    });
+    if (!ok) return;
     selectedMergeTableIds.value = [];
   }
   selectedMergeArea.value = area;
@@ -1463,7 +1748,7 @@ function toggleMergeTableSelection(tableId) {
   if (!selectedMergeArea.value) {
     selectedMergeArea.value = targetTable.areaName || 'Sảnh chung';
   } else if (normalizeArea(targetTable.areaName) !== normalizeArea(selectedMergeArea.value)) {
-    alert(`Không thể gộp bàn "${targetTable.tableName}" (${targetTable.areaName}) vì bạn đang chọn gộp bàn tại khu vực "${selectedMergeArea.value}".\n\nHệ thống chỉ cho phép gộp các bàn cùng khu vực. Vui lòng bấm vào tab khu vực "${targetTable.areaName}" nếu muốn gộp ở khu vực đó.`);
+    showToast(`Bàn "${targetTable.tableName}" thuộc khu vực "${targetTable.areaName}", không thể gộp cùng khu vực "${selectedMergeArea.value}". Vui lòng chọn các bàn cùng khu vực.`, 'warning', 'Khác khu vực');
     return;
   }
 
@@ -1645,7 +1930,7 @@ const areaList = computed(() => {
 
 async function openAssignTableModal(reservation) {
   if (reservation.reservationStatus !== 'confirmed') {
-    alert('Vui lòng duyệt xác nhận phiếu đặt bàn trước khi phân bàn.');
+    showToast('Vui lòng duyệt tiếp nhận phiếu đặt bàn trước khi phân bàn cho khách.', 'warning', 'Chưa duyệt phiếu');
     return;
   }
   selectedReservation.value = reservation;
@@ -1706,16 +1991,26 @@ async function openAssignTableModal(reservation) {
 }
 
 async function handleConfirm(item) {
-  if (!confirm(`Xác nhận tiếp nhận lịch đặt bàn của khách ${item.customerName}? Sau bước này bạn có thể phân bàn phù hợp.`)) return;
+  const confirmed = await askConfirm({
+    title: 'Tiếp Nhận Đặt Bàn',
+    icon: '📋',
+    type: 'primary',
+    message: `Xác nhận tiếp nhận lịch đặt bàn của khách ${item.customerName}?`,
+    subMessage: 'Sau bước này bạn có thể phân bàn phù hợp hoặc check-in đón khách.',
+    item: item,
+    confirmText: 'Duyệt Tiếp Nhận',
+    cancelText: 'Quay Lại'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await axios.post(`${API_BASE}/admin/reservations/${item.reservationId}/confirm`);
     if (res.data?.success) {
-      alert(res.data.message);
+      showToast(res.data.message || 'Đã tiếp nhận lịch đặt bàn thành công!', 'success', 'Duyệt thành công');
       await fetchReservations();
     }
   } catch (err) {
-    alert(err.response?.data?.message || 'Không thể xác nhận phiếu đặt bàn.');
+    showToast(err.response?.data?.message || 'Không thể xác nhận phiếu đặt bàn.', 'error', 'Lỗi tiếp nhận');
   }
 }
 
@@ -1729,7 +2024,7 @@ async function submitAssignTable() {
   } else {
     if (selectedMergeTableIds.value.length === 0) return;
     if (!mergeAreasAreValid.value) {
-      alert('Chỉ được gộp các bàn trong cùng một khu vực.');
+      showToast('Chỉ được gộp các bàn trong cùng một khu vực.', 'warning', 'Ràng buộc khu vực');
       return;
     }
     targetIds = selectedMergeTableIds.value;
@@ -1743,13 +2038,13 @@ async function submitAssignTable() {
     });
 
     if (res.data?.success) {
-      alert(res.data.message);
+      showToast(res.data.message || 'Xếp bàn thành công!', 'success', 'Hoàn tất xếp bàn');
       showAssignModal.value = false;
       await fetchReservations();
       await fetchTables();
     }
   } catch (err) {
-    alert(err.response?.data?.message || 'Lỗi khi xếp bàn.');
+    showToast(err.response?.data?.message || 'Lỗi khi xếp bàn.', 'error', 'Lỗi xếp bàn');
   } finally {
     submittingAssign.value = false;
   }
@@ -1757,44 +2052,65 @@ async function submitAssignTable() {
 
 async function handleCheckIn(item) {
   if (!item.table) {
-    alert('Vui lòng phân bàn trước khi check-in.');
+    showToast('Vui lòng phân bàn trước khi check-in cho khách.', 'warning', 'Chưa xếp bàn');
     return;
   }
 
   const mergedInfo = getMergedTableTitle(item);
   const targetName = mergedInfo ? mergedInfo : item.table.tableName;
 
-  if (!confirm(`Xác nhận đón khách ${item.customerName} vào ${targetName}? Hệ thống sẽ tự động kích hoạt tất cả các bàn sang Serving và tạo Order mở mới.`)) {
-    return;
-  }
+  const confirmed = await askConfirm({
+    title: 'Check-in Đón Khách Vào Bàn',
+    icon: '🛎️',
+    type: 'success',
+    message: `Xác nhận đón khách ${item.customerName} vào bàn ${targetName}?`,
+    subMessage: 'Hệ thống sẽ tự động kích hoạt tất cả các bàn sang trạng thái "Đang phục vụ" (Serving) và tạo Order mở mới cho bàn này.',
+    item: item,
+    confirmText: 'Xác Nhận Đón Khách',
+    cancelText: 'Chưa Đón'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await axios.post(`${API_BASE}/admin/reservations/${item.reservationId}/check-in`);
     if (res.data?.success) {
-      alert(res.data.message);
+      showToast(res.data.message || 'Đã đón khách vào bàn thành công!', 'success', 'Check-in thành công');
       await fetchReservations();
       await fetchTables();
     }
   } catch (err) {
-    alert(err.response?.data?.message || 'Lỗi khi check-in cho khách.');
+    showToast(err.response?.data?.message || 'Lỗi khi check-in cho khách.', 'error', 'Lỗi check-in');
   }
 }
 
 async function handleCancel(item) {
-  const reason = prompt(`Nhập lý do hủy đặt bàn cho khách ${item.customerName} (nếu có):`, 'Khách bận đột xuất');
-  if (reason === null) return;
+  const result = await askConfirm({
+    title: 'Hủy Lịch Đặt Bàn',
+    icon: '🛑',
+    type: 'danger',
+    message: `Bạn có chắc chắn muốn hủy lịch hẹn của khách ${item.customerName}?`,
+    subMessage: 'Thao tác này sẽ giải phóng bàn đã xếp (nếu có) và đánh dấu phiếu bị hủy.',
+    item: item,
+    showInput: true,
+    inputLabel: 'Lý do hủy đặt bàn (tùy chọn):',
+    inputValue: 'Khách bận đột xuất',
+    inputPlaceholder: 'Nhập lý do hủy...',
+    confirmText: 'Xác Nhận Hủy Phiếu',
+    cancelText: 'Giữ Lại Phiếu'
+  });
+  if (!result || !result.confirmed) return;
 
   try {
     const res = await axios.post(`${API_BASE}/admin/reservations/${item.reservationId}/cancel`, {
-      reason
+      reason: result.value || 'Khách hủy'
     });
     if (res.data?.success) {
-      alert('Đã hủy đặt bàn thành công.');
+      showToast('Đã hủy đặt bàn thành công.', 'success', 'Đã hủy phiếu');
       await fetchReservations();
       await fetchTables();
     }
   } catch (err) {
-    alert(err.response?.data?.message || 'Lỗi khi hủy đặt bàn.');
+    showToast(err.response?.data?.message || 'Lỗi khi hủy đặt bàn.', 'error', 'Lỗi hủy');
   }
 }
 
@@ -1813,7 +2129,7 @@ function openCreateModal() {
 
 async function submitCreateReservation() {
   if (!createForm.value.customerName || !createForm.value.customerPhone || !createForm.value.reservationDate) {
-    alert('Vui lòng điền đầy đủ họ tên, số điện thoại và thời gian hẹn.');
+    showToast('Vui lòng điền đầy đủ họ tên, số điện thoại và thời gian hẹn.', 'warning', 'Thiếu thông tin');
     return;
   }
 
@@ -1828,13 +2144,13 @@ async function submitCreateReservation() {
     });
 
     if (res.data?.success) {
-      alert('Đã tiếp nhận đặt bàn hotline thành công!');
+      showToast('Đã tiếp nhận đặt bàn hotline thành công!', 'success', 'Đặt bàn thành công');
       showCreateModal.value = false;
       await fetchReservations();
       await fetchTables();
     }
   } catch (err) {
-    alert(err.response?.data?.message || 'Lỗi khi tạo đặt bàn.');
+    showToast(err.response?.data?.message || 'Lỗi khi tạo đặt bàn.', 'error', 'Lỗi tạo phiếu');
   } finally {
     submittingCreate.value = false;
   }
@@ -2365,10 +2681,8 @@ function getRelativeDateBadgeClass(dtStr) {
   overscroll-behavior: contain;
 }
 
-.assign-table-dialog,
-.hotline-dialog,
-.detail-pro-dialog {
-  width: min(880px, calc(100vw - 2rem));
+.assign-table-dialog {
+  width: min(1040px, calc(100vw - 2rem));
   max-height: 92vh;
   display: flex;
   flex-direction: column;
@@ -2376,9 +2690,16 @@ function getRelativeDateBadgeClass(dtStr) {
   overscroll-behavior: contain;
   animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .hotline-dialog,
 .detail-pro-dialog {
   width: min(660px, calc(100vw - 2rem));
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overscroll-behavior: contain;
+  animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes modalPop {
@@ -2514,26 +2835,156 @@ function getRelativeDateBadgeClass(dtStr) {
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
 }
 
-.area-tab-btn {
-  border-radius: 8px;
-  font-weight: 600;
-  color: #475569;
-  background-color: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  white-space: nowrap;
-  transition: all 0.15s ease;
+/* ============================================================== */
+/* SMART TABLE ASSIGNMENT: SIDEBAR & WORKSPACE LAYOUT (UI/UX PRO) */
+/* ============================================================== */
+.assign-layout-container {
+  min-height: 460px;
 }
-.area-tab-btn.active {
-  background-color: #0f172a;
+
+/* Sidebar Phân Khu Vực Bàn */
+.area-sidebar-card {
+  width: 250px;
+  min-width: 250px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 767.98px) {
+  .area-sidebar-card {
+    width: 100%;
+    min-width: 100%;
+  }
+}
+
+.area-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.area-sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.area-sidebar-item:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateX(2px);
+  color: #0f172a;
+}
+
+.area-sidebar-item.active {
+  background-color: #0f172a !important;
+  border-color: #0f172a !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+}
+
+.area-sidebar-item.active .area-item-name {
+  color: #ffffff !important;
+}
+
+.area-item-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.area-item-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #1e293b;
+}
+
+.area-item-sub {
+  font-size: 0.68rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.area-sidebar-item.active .area-item-sub {
+  color: #94a3b8 !important;
+}
+
+.area-item-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.badge-has-tables {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.area-sidebar-item.active .badge-has-tables {
+  background-color: #22c55e;
   color: #ffffff;
-  border-color: #0f172a;
+  border-color: #22c55e;
+}
+
+.badge-empty {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+.area-sidebar-item.active .badge-empty {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Sidebar Safety Card (Merge mode hint) */
+.sidebar-safety-hint {
+  margin-top: auto;
+}
+
+.sidebar-safety-card {
+  background: #fefce8;
+  border: 1px dashed #facc15;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+/* Workspace Panel */
+.area-workspace-panel {
+  min-width: 0;
+}
+
+.selected-tables-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 
 /* Table Selection Cards */
 .table-selection-card {
   background-color: #ffffff;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   border: 2px solid #e2e8f0 !important;
+  border-radius: 14px;
 }
 .table-selection-card:hover {
   border-color: #94a3b8 !important;
@@ -2562,6 +3013,39 @@ function getRelativeDateBadgeClass(dtStr) {
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4);
 }
 
+/* Purple Badge & Palette Helpers */
+.bg-purple {
+  background-color: #7c3aed !important;
+  color: #ffffff !important;
+}
+.text-purple {
+  color: #7c3aed !important;
+}
+.border-purple {
+  border-color: #c4b5fd !important;
+}
+.bg-purple-subtle {
+  background-color: #f5f3ff !important;
+}
+
+/* Utility Helpers */
+.g-2-5 {
+  --bs-gutter-x: 0.75rem;
+  --bs-gutter-y: 0.75rem;
+}
+.p-2-5 {
+  padding: 0.625rem !important;
+}
+.gap-1-5 {
+  gap: 0.375rem !important;
+}
+.shadow-xs {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.fw-black {
+  font-weight: 900;
+}
+
 .spin-anim {
   display: inline-block;
   animation: spin 0.8s linear infinite;
@@ -2574,5 +3058,169 @@ function getRelativeDateBadgeClass(dtStr) {
 .btn-xs {
   font-size: 0.72rem;
   padding: 2px 8px;
+}
+
+/* ============================================================== */
+/* CUSTOM CONFIRM DIALOG STYLING (UI/UX PRO EXECUTIVE DIALOG)     */
+/* ============================================================== */
+.custom-confirm-backdrop {
+  z-index: 1060;
+  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.custom-confirm-card {
+  width: min(460px, calc(100vw - 2rem));
+  border-radius: 20px;
+  animation: modalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.confirm-icon-bubble {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.15);
+}
+
+.confirm-icon-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(59, 130, 246, 0.35);
+}
+
+.confirm-icon-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(16, 185, 129, 0.35);
+}
+
+.confirm-icon-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(245, 158, 11, 0.35);
+}
+
+.confirm-icon-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(239, 68, 68, 0.35);
+}
+
+.confirm-item-context {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+/* ============================================================== */
+/* TOAST NOTIFICATIONS (MODERN FLOATING NOTIFICATION SYSTEM)      */
+/* ============================================================== */
+.custom-toast-container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+  width: calc(100vw - 48px);
+  pointer-events: none;
+}
+
+.custom-toast-item {
+  pointer-events: auto;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  padding: 12px 14px 12px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+}
+
+.toast-accent-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 5px;
+}
+.bar-success { background: #10b981; }
+.bar-error, .bar-danger { background: #ef4444; }
+.bar-warning { background: #f59e0b; }
+.bar-info, .bar-primary { background: #3b82f6; }
+
+.toast-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.icon-box-success {
+  background: #dcfce7;
+  color: #15803d;
+}
+.icon-box-error, .icon-box-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.icon-box-warning {
+  background: #fef3c7;
+  color: #b45309;
+}
+.icon-box-info, .icon-box-primary {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.toast-title {
+  line-height: 1.25;
+  margin-bottom: 2px;
+}
+.toast-message {
+  line-height: 1.35;
+  font-size: 0.8rem !important;
+}
+
+.toast-close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.toast-close-btn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+/* Toast animations */
+.toast-anim-enter-active,
+.toast-anim-leave-active {
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast-anim-enter-from {
+  opacity: 0;
+  transform: translateX(30px) scale(0.95);
+}
+.toast-anim-leave-to {
+  opacity: 0;
+  transform: translateY(-15px) scale(0.95);
 }
 </style>

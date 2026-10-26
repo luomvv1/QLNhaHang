@@ -8,6 +8,8 @@ using System.Text.Json;
 using Restaurant.Api.Hubs;
 using System.Security.Claims;
 using System.Data;
+using System.Globalization;
+using Restaurant.Api.Services;
 
 namespace Restaurant.Api.Controllers.Admin;
 
@@ -122,9 +124,31 @@ public class AdminStockReceiptController : ControllerBase
         [FromQuery] string? fromDate = null,
         [FromQuery] string? toDate = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string dateField = "created")
     {
+        if (dateField is not ("created" or "approved"))
+            return BadRequest(new { success = false, message = "Chỉ hỗ trợ lọc theo ngày lập hoặc ngày duyệt." });
+        DateTime? start = null, end = null;
+        if (!string.IsNullOrWhiteSpace(fromDate))
+        {
+            if (!DateTime.TryParseExact(fromDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var from)
+                || from.Date == DateTime.MinValue.Date)
+                return BadRequest(new { success = false, message = "Ngày bắt đầu không hợp lệ." });
+            start = from.Date.AddHours(-7);
+        }
+        if (!string.IsNullOrWhiteSpace(toDate))
+        {
+            if (!DateTime.TryParseExact(toDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to)
+                || to.Date == DateTime.MaxValue.Date)
+                return BadRequest(new { success = false, message = "Ngày kết thúc không hợp lệ." });
+            end = to.Date.AddDays(1).AddHours(-7);
+        }
+        if (start.HasValue && end.HasValue && start >= end)
+            return BadRequest(new { success = false, message = "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc." });
         var query = _dbContext.StockReceipts
+            .AsNoTracking()
             .Include(r => r.Supplier)
             .Include(r => r.CreatedByNavigation)
             .Include(r => r.ApprovedByNavigation)
@@ -137,30 +161,43 @@ public class AdminStockReceiptController : ControllerBase
             query = query.Where(r => r.ReceiptType.ToLower() == t);
         }
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(r => r.ReceiptCode.Contains(term) || (r.Note != null && r.Note.Contains(term))
+                || (r.Supplier != null && r.Supplier.SupplierName.Contains(term))
+                || r.CreatedByNavigation.FullName.Contains(term)
+                || r.StockReceiptDetails.Any(d => d.InventoryItem.ItemName.Contains(term)
+                    || (d.Batch != null && d.Batch.BatchCode.Contains(term))));
+        }
+        if (dateField == "approved") query = query.Where(r => r.ApprovedAt.HasValue);
+        if (start.HasValue)
+        {
+            query = dateField == "approved" ? query.Where(r => r.ApprovedAt >= start.Value) : query.Where(r => r.CreatedAt >= start.Value);
+        }
+        if (end.HasValue)
+        {
+            query = dateField == "approved" ? query.Where(r => r.ApprovedAt < end.Value) : query.Where(r => r.CreatedAt < end.Value);
+        }
+        var counts = await query.GroupBy(r => r.Status).Select(g => new { Status = g.Key, Count = g.Count() }).ToListAsync();
+        var statusCounts = new { All = counts.Sum(c => c.Count),
+            Draft = counts.Where(c => c.Status == "draft").Sum(c => c.Count),
+            Approved = counts.Where(c => c.Status == "approved").Sum(c => c.Count),
+            Cancelled = counts.Where(c => c.Status == "cancelled").Sum(c => c.Count) };
         if (!string.IsNullOrWhiteSpace(status) && status != "all")
         {
-            var s = status.Trim().ToLower();
+            var s = status.Trim().ToLowerInvariant();
             query = query.Where(r => r.Status.ToLower() == s);
         }
-
-        if (!string.IsNullOrWhiteSpace(fromDate) && DateTime.TryParse(fromDate, out var from))
-        {
-            query = query.Where(r => r.CreatedAt >= from.Date);
-        }
-
-        if (!string.IsNullOrWhiteSpace(toDate) && DateTime.TryParse(toDate, out var to))
-        {
-            query = query.Where(r => r.CreatedAt < to.Date.AddDays(1));
-        }
-
         var totalCount = await query.CountAsync();
 
         if (pageSize <= 0) pageSize = 20;
         if (pageSize > 100) pageSize = 100;
         if (page <= 0) page = 1;
 
-        var receipts = await query
-            .OrderByDescending(r => r.CreatedAt)
+        var orderedQuery = dateField == "approved" ? query.OrderByDescending(r => r.ApprovedAt) : query.OrderByDescending(r => r.CreatedAt);
+        var receipts = await orderedQuery
+            .ThenByDescending(r => r.ReceiptId)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(r => new
@@ -188,6 +225,7 @@ public class AdminStockReceiptController : ControllerBase
         {
             success = true,
             totalCount,
+            statusCounts,
             page,
             pageSize,
             totalPages = (int)Math.Ceiling((double)totalCount / pageSize),
@@ -269,7 +307,9 @@ public class AdminStockReceiptController : ControllerBase
                 receipt.ApprovedAt,
                 receipt.CreatedAt,
                 receipt.UpdatedAt,
-                Details = details
+                Details = details,
+                AllocationPreview = receipt.Status == "draft" && receipt.ReceiptType == "export_kitchen"
+                    ? await KitchenBatchAllocation.PreviewAsync(_dbContext, receipt, DateTime.UtcNow) : null
             }
         });
     }
@@ -567,7 +607,7 @@ public class AdminStockReceiptController : ControllerBase
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("ReceiptStatusChanged", new { receiptId = id, status = "cancelled" });
+            await _hubContext.PublishAsync(_dbContext, "ReceiptStatusChanged", new { receiptId = id, status = "cancelled" });
         }
         catch { }
 
@@ -670,7 +710,7 @@ public class AdminStockReceiptController : ControllerBase
                         }
 
                         // Xử lý từng detail trong group
-                        foreach (var detail in group)
+                        foreach (var detail in group.OrderBy(d => d.DetailId))
                         {
                             if (detail.BatchId.HasValue)
                             {
@@ -720,6 +760,8 @@ public class AdminStockReceiptController : ControllerBase
                                     batch.Status = "depleted";
                                 }
                                 batch.UpdatedAt = now;
+                                detail.UnitCost = batch.UnitCost;
+                                detail.Subtotal = InventoryCostHelper.CalculateAmount(detail.Quantity, batch.UnitCost, item.ConversionRate);
 
                                 // Ghi nhận movement
                                 var movement = new StockMovement
@@ -742,15 +784,11 @@ public class AdminStockReceiptController : ControllerBase
                                 // A2: Thuật toán FEFO (First-Expired, First-Out) tự động
                                 var requestedQuantity = detail.Quantity;
                                 var sourceBomSnapshot = detail.BomSnapshotJson;
-                                var availableBatches = await _dbContext.InventoryBatches
-                                    .Where(b => b.InventoryItemId == itemId &&
-                                                b.Status == "active" &&
-                                                b.QuantityRemaining > 0 &&
-                                                    (receipt.ReceiptType == "waste_disposal" || b.ExpiryDate >= now.AddHours(7).Date))
-                                    .OrderByDescending(b => receipt.ReceiptType == "export_kitchen" && b.BatchCode.StartsWith("TH-BEP-"))
-                                    .ThenBy(b => b.ExpiryDate)
-                                    .ThenBy(b => b.ReceivedDate)
-                                    .ThenBy(b => b.BatchId)
+                                var batchQuery = _dbContext.InventoryBatches.Where(b => b.InventoryItemId == itemId);
+                                var availableBatches = await (receipt.ReceiptType == "export_kitchen"
+                                    ? KitchenBatchAllocation.AvailableBatches(batchQuery, now.AddHours(7).Date)
+                                    : batchQuery.Where(b => b.Status == "active" && b.QuantityRemaining > 0)
+                                        .OrderBy(b => b.ExpiryDate).ThenBy(b => b.ReceivedDate).ThenBy(b => b.BatchId))
                                     .ToListAsync();
 
                                 decimal totalBatchAvailable = availableBatches.Sum(b => b.QuantityRemaining);
@@ -770,6 +808,7 @@ public class AdminStockReceiptController : ControllerBase
                                 foreach (var batch in availableBatches)
                                 {
                                     if (needToAllocate <= 0) break;
+                                    if (batch.QuantityRemaining <= 0) continue;
 
                                     decimal allocate = Math.Min(needToAllocate, batch.QuantityRemaining);
                                     batch.QuantityRemaining -= allocate;
@@ -1082,13 +1121,32 @@ public class AdminStockReceiptController : ControllerBase
             receipt.ApprovedAt = now;
             receipt.UpdatedAt = now;
 
+            _dbContext.AuditLogs.Add(new AuditLog
+            {
+                UserId = userId.Value,
+                ActionName = "receipt_approved",
+                EntityName = "StockReceipt",
+                EntityId = receipt.ReceiptId.ToString(),
+                OldData = System.Text.Json.JsonSerializer.Serialize(new { status = "draft" }),
+                NewData = System.Text.Json.JsonSerializer.Serialize(new {
+                    status = "approved",
+                    receiptCode = receipt.ReceiptCode,
+                    receiptType = receipt.ReceiptType,
+                    totalAmount = receipt.TotalAmount,
+                    note = receipt.Note
+                }),
+                CreatedAt = now
+            });
+
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             // 4. Phát tín hiệu Realtime SignalR
             try
             {
-                await _hubContext.Clients.All.SendAsync("ReceiptStatusChanged", new
+                if (receipt.ReceiptType == "export_kitchen")
+                    await _hubContext.PublishAsync(_dbContext, "PortionAvailabilityChanged", new { receipt.ReceiptId, eventType = "issue_approved" });
+                await _hubContext.PublishAsync(_dbContext, "ReceiptStatusChanged", new
                 {
                     receiptId = receipt.ReceiptId,
                     receiptCode = receipt.ReceiptCode,
@@ -1098,14 +1156,14 @@ public class AdminStockReceiptController : ControllerBase
                     approvedAt = now
                 });
 
-                await _hubContext.Clients.All.SendAsync("InventoryChanged", new
+                await _hubContext.PublishAsync(_dbContext, "InventoryChanged", new
                 {
                     action = "receipt_approved",
                     receiptType = receipt.ReceiptType,
                     receiptCode = receipt.ReceiptCode
                 });
 
-                await _hubContext.Clients.All.SendAsync("InventoryUpdated", new
+                await _hubContext.PublishAsync(_dbContext, "InventoryUpdated", new
                 {
                     receiptId = receipt.ReceiptId,
                     receiptCode = receipt.ReceiptCode,
@@ -1113,7 +1171,7 @@ public class AdminStockReceiptController : ControllerBase
                     status = "approved"
                 });
 
-                await _hubContext.Clients.All.SendAsync("KitchenUpdated", new
+                await _hubContext.PublishAsync(_dbContext, "KitchenUpdated", new
                 {
                     receiptId = receipt.ReceiptId,
                     receiptCode = receipt.ReceiptCode,
@@ -1296,12 +1354,28 @@ public class AdminStockReceiptController : ControllerBase
 
             receipt.TotalAmount = totalAmount;
 
+            _dbContext.AuditLogs.Add(new AuditLog
+            {
+                UserId = userId.Value,
+                ActionName = "receipt_waste_approved",
+                EntityName = "StockReceipt",
+                EntityId = receipt.ReceiptId.ToString(),
+                NewData = System.Text.Json.JsonSerializer.Serialize(new {
+                    receiptCode = receipt.ReceiptCode,
+                    receiptType = "waste_disposal",
+                    totalAmount = receipt.TotalAmount,
+                    itemCount = receipt.StockReceiptDetails.Count,
+                    note = receipt.Note
+                }),
+                CreatedAt = now
+            });
+
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
             try
             {
-                await _hubContext.Clients.All.SendAsync("InventoryChanged", new { action = "quick_waste", receiptCode });
+                await _hubContext.PublishAsync(_dbContext, "InventoryChanged", new { action = "quick_waste", receiptCode });
             }
             catch { }
 

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
 using Restaurant.Api.Hubs;
+using Restaurant.Api.Services;
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
@@ -195,7 +196,7 @@ public class AdminPortionController : ControllerBase
     {
         var targetDate = DateTime.TryParse(date, out var parsedDate)
             ? parsedDate.Date
-            : DateTime.UtcNow.Date;
+            : PortionAvailabilityService.Today;
 
         var query = _dbContext.DailyPortionControls
             .Include(p => p.Food).ThenInclude(f => f.Category)
@@ -220,6 +221,7 @@ public class AdminPortionController : ControllerBase
             .ThenBy(p => p.Food.FoodName)
             .ThenBy(p => p.Variant != null ? p.Variant.SortOrder : 0)
             .ToListAsync();
+        var dayAvailability = await PortionAvailabilityService.LoadAsync(_dbContext, targetDate);
 
         // Kiểm tra xem đã có phiếu xuất bếp (export_kitchen) cho ngày này chưa
         string datePrefix = $"PXK-{targetDate:yyyyMMdd}";
@@ -292,18 +294,12 @@ public class AdminPortionController : ControllerBase
                 ? $"{p.Food.FoodName} ({p.Variant.VariantName})"
                 : p.Food.FoodName;
 
-            var dishAllocations = additionalAllocations
-                .Where(x => x.Label.StartsWith(dishLabel, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
+            var quota = dayAvailability.Quotas.GetValueOrDefault(new(p.FoodId, p.VariantId));
             var initialPlannedPortions = Math.Max(p.PlannedPortions, 0);
-            var additionalApprovedPortions = dishAllocations
-                .Where(x => x.Status == "approved")
-                .Sum(x => x.Portions);
-            var pendingAdditionalPortions = dishAllocations
-                .Where(x => x.Status == "draft")
-                .Sum(x => x.Portions);
+            var additionalApprovedPortions = quota?.AdditionalApprovedPortions ?? 0;
+            var pendingAdditionalPortions = quota?.PendingAdditionalPortions ?? 0;
             var plannedPortions = initialPlannedPortions + additionalApprovedPortions;
+            var kitchenSoldOut = p.Food.FoodStatus == "sold_out" || p.Variant?.IsSoldOut == true;
 
             return new
             {
@@ -321,7 +317,11 @@ public class AdminPortionController : ControllerBase
                 AdditionalApprovedPortions = additionalApprovedPortions,
                 PendingAdditionalPortions = pendingAdditionalPortions,
                 PlannedPortions = plannedPortions,
-                RemainingPortions = plannedPortions - p.SoldPortions,
+                IssuedPortions = quota?.IssuedPortions ?? 0,
+                ReservedPortions = quota?.ReservedPortions ?? 0,
+                RemainingPortions = quota?.RemainingPortions ?? 0,
+                KitchenSoldOut = kitchenSoldOut,
+                AvailabilityStatus = kitchenSoldOut ? "kitchen_sold_out" : quota?.Status ?? "unplanned",
                 p.CarryOverPortions,
                 NeedToCookPortions = plannedPortions,
                 p.CookedPortions,
@@ -348,6 +348,9 @@ public class AdminPortionController : ControllerBase
             TotalNeedToCook = result.Sum(i => Math.Max(i.PlannedPortions, 0)),
             TotalCooked = result.Sum(i => i.CookedPortions),
             TotalSold = result.Sum(i => i.SoldPortions),
+            TotalIssued = result.Sum(i => i.IssuedPortions),
+            TotalReserved = result.Sum(i => i.ReservedPortions),
+            TotalRemaining = result.Sum(i => i.RemainingPortions),
             TotalSystemRemain = result.Sum(i => i.SystemRemain),
             TotalDisposed = result.Sum(i => i.DisposedPortions),
             TotalNextCarryOver = result.Sum(i => i.NextCarryOverPortions)
@@ -497,12 +500,15 @@ public class AdminPortionController : ControllerBase
         if (request == null || request.Items == null || request.Items.Count == 0)
             return BadRequest(new { success = false, message = "Danh sách kế hoạch suất ăn không được để trống." });
 
-        var targetDate = (request.ControlDate ?? DateTime.UtcNow).Date;
+        var targetDate = (request.ControlDate ?? PortionAvailabilityService.Today).Date;
         var now = DateTime.UtcNow;
 
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
+            var prefix = $"PXK-{targetDate:yyyyMMdd}-";
+            if (await _dbContext.StockReceipts.AnyAsync(r => r.ReceiptType == "export_kitchen" && r.ReceiptCode.StartsWith(prefix) && r.Status != "cancelled"))
+                return Conflict(new { success = false, message = "Kế hoạch đã lập phiếu xuất. Hãy lập phiếu bổ sung thay vì ghi đè kế hoạch gốc." });
             var savedCount = 0;
 
             foreach (var input in request.Items)
@@ -566,7 +572,7 @@ public class AdminPortionController : ControllerBase
 
             try
             {
-                await _hubContext.Clients.All.SendAsync("KitchenUpdated", new { eventType = "daily_portions_planned", date = targetDate });
+                await _hubContext.PublishAsync(_dbContext, "KitchenUpdated", new { eventType = "daily_portions_planned", date = targetDate });
             }
             catch { }
 
@@ -592,7 +598,7 @@ public class AdminPortionController : ControllerBase
     [HttpPost("generate-requisition")]
     public async Task<IActionResult> GenerateRequisition([FromBody] GenerateRequisitionRequest request)
     {
-        var targetDate = (request?.ControlDate ?? DateTime.UtcNow).Date;
+        var targetDate = (request?.ControlDate ?? PortionAvailabilityService.Today).Date;
         var now = DateTime.UtcNow;
         var localNow = TimeZoneInfo.ConvertTimeFromUtc(
             now,
@@ -860,7 +866,7 @@ public class AdminPortionController : ControllerBase
 
             try
             {
-                await _hubContext.Clients.All.SendAsync("InventoryUpdated", new { receiptId = receipt.ReceiptId, eventType = "requisition_created" });
+                await _hubContext.PublishAsync(_dbContext, "InventoryUpdated", new { receiptId = receipt.ReceiptId, eventType = "requisition_created" });
             }
             catch { }
 
@@ -918,7 +924,7 @@ public class AdminPortionController : ControllerBase
     [HttpPost("generate-additional-requisition")]
     public async Task<IActionResult> GenerateAdditionalRequisition([FromBody] AdditionalRequisitionRequest request)
     {
-        var targetDate = (request?.ControlDate ?? DateTime.UtcNow).Date;
+        var targetDate = (request?.ControlDate ?? PortionAvailabilityService.Today).Date;
         var selectedItems = request?.Items?
             .Where(x => x.AdditionalPortions > 0)
             .ToList() ?? new List<AdditionalRequisitionItemInput>();
@@ -1087,6 +1093,19 @@ public class AdminPortionController : ControllerBase
         using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
+            if (!await PortionAvailabilityService.TryLockAsync(_dbContext))
+                return Conflict(new { success = false, message = "Đang cập nhật suất ăn. Vui lòng thử lại." });
+            if (await _dbContext.StockReceipts.AnyAsync(r => r.ReceiptType == "export_kitchen" &&
+                r.ReceiptCode.StartsWith($"PXK-BS-{targetDate:yyyyMMdd}-") && r.Status == "draft"))
+                return Conflict(new { success = false, code = "ADDITIONAL_RECEIPT_PENDING",
+                    message = "Đã có phiếu bổ sung đang chờ duyệt. Hãy kiểm tra Phiếu kho." });
+            var portionAvailability = await PortionAvailabilityService.LoadAsync(_dbContext, targetDate);
+            if (selectedItems.Any(item => portionAvailability.Resolve(item.FoodId, item.VariantId)?.IsClosed == true))
+                return Conflict(new { success = false, message = "Món đã chốt hoàn/hủy. Không thể xuất bổ sung cho ngày đã chốt." });
+            foreach (var item in selectedItems.DistinctBy(item => new { item.FoodId, item.VariantId }))
+                if (!await _dbContext.DailyPortionControls.AnyAsync(p => p.ControlDate == targetDate && p.FoodId == item.FoodId && p.VariantId == item.VariantId))
+                    _dbContext.DailyPortionControls.Add(new DailyPortionControl { ControlDate = targetDate, FoodId = item.FoodId,
+                        VariantId = item.VariantId, Status = "in_service", CreatedAt = now, UpdatedAt = now });
             var receipt = new StockReceipt
             {
                 ReceiptCode = $"PXK-BS-{targetDate:yyyyMMdd}-{localNow:HHmmssfff}",
@@ -1152,7 +1171,7 @@ public class AdminPortionController : ControllerBase
 
             try
             {
-                await _hubContext.Clients.All.SendAsync("InventoryUpdated", new { receiptId = receipt.ReceiptId, eventType = "additional_requisition_created" });
+                await _hubContext.PublishAsync(_dbContext, "InventoryUpdated", new { receiptId = receipt.ReceiptId, eventType = "additional_requisition_created" });
             }
             catch { }
 
@@ -1219,7 +1238,7 @@ public class AdminPortionController : ControllerBase
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("KitchenUpdated", new
+            await _hubContext.PublishAsync(_dbContext, "KitchenUpdated", new
             {
                 eventType = "portion_cooked_updated",
                 portionId = portion.PortionControlId,
@@ -1259,6 +1278,9 @@ public class AdminPortionController : ControllerBase
         if (request.PlannedPortions.HasValue)
         {
             if (request.PlannedPortions.Value < 0) return BadRequest(new { success = false, message = "Số suất dự kiến không được âm." });
+            var prefix = $"PXK-{portion.ControlDate:yyyyMMdd}-";
+            if (await _dbContext.StockReceipts.AnyAsync(r => r.ReceiptType == "export_kitchen" && r.ReceiptCode.StartsWith(prefix) && r.Status != "cancelled"))
+                return Conflict(new { success = false, message = "Kế hoạch đã lập phiếu xuất. Hãy lập phiếu bổ sung, không sửa số suất gốc." });
             portion.PlannedPortions = request.PlannedPortions.Value;
         }
 
@@ -1323,6 +1345,11 @@ public class AdminPortionController : ControllerBase
         var portion = await _dbContext.DailyPortionControls.FirstOrDefaultAsync(p => p.PortionControlId == id);
         if (portion == null)
             return NotFound(new { success = false, message = "Không tìm thấy bản ghi suất ăn." });
+
+        var availability = await PortionAvailabilityService.LoadAsync(_dbContext, portion.ControlDate);
+        var quota = availability.Resolve(portion.FoodId, portion.VariantId);
+        if (quota != null && (quota.IssuedPortions > 0 || quota.ReservedPortions > 0 || quota.PendingAdditionalPortions > 0))
+            return Conflict(new { success = false, message = "Đã có phiếu xuất hoặc order giữ suất. Không thể xóa kế hoạch." });
 
         if (portion.SoldPortions > 0 || portion.CookedPortions > 0)
         {

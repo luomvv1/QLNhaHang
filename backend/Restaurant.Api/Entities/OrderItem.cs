@@ -39,7 +39,17 @@ public partial class OrderItem
 
     public DateTime? ConfirmedAt { get; set; }
 
+    public DateTime? PortionDate { get; set; }
+
     public DateTime? ReadyAt { get; set; }
+
+    public DateTime? CancelledAt { get; set; }
+
+    public int? CancelledBy { get; set; }
+
+    public string? CancellationReason { get; set; }
+
+    public string? CancelledFromStatus { get; set; }
 
     public virtual User? Chef { get; set; }
 

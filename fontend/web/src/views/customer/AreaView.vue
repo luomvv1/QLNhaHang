@@ -16,14 +16,14 @@
         <div class="col-12 col-lg-6" v-for="area in areas" :key="area.code">
           <div class="dola-card overflow-hidden h-100 d-flex flex-column">
 
-            <!-- Area Visual Box -->
-            <div class="position-relative p-5 text-center d-flex flex-column align-items-center justify-content-center"
-              :style="{ background: area.gradient, minHeight: '220px' }">
-              <span style="font-size: 5rem; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">{{ area.icon }}</span>
-              <span class="badge bg-warning text-dark position-absolute top-0 end-0 m-3 px-3 py-2 fw-bold rounded-pill">
+            <!-- Area Visual Box with Real Photography -->
+            <div class="position-relative overflow-hidden area-banner-box" style="aspect-ratio: 16 / 10; min-height: 220px;">
+              <img :src="area.image" :alt="area.name" class="w-100 h-100 object-fit-cover area-img" loading="lazy" />
+              <div class="area-banner-overlay"></div>
+              <span class="badge bg-warning text-dark position-absolute top-0 end-0 m-3 px-3 py-2 fw-bold rounded-pill shadow-sm">
                 {{ area.badge }}
               </span>
-              <span class="badge bg-success position-absolute top-0 start-0 m-3 px-3 py-2 fw-semibold rounded-pill">
+              <span class="badge bg-success position-absolute top-0 start-0 m-3 px-3 py-2 fw-semibold rounded-pill shadow-sm">
                 ● Đang mở cửa
               </span>
             </div>
@@ -31,31 +31,31 @@
             <!-- Content -->
             <div class="p-4 d-flex flex-column flex-grow-1">
               <div class="d-flex justify-content-between align-items-start mb-2">
-                <h3 class="dola-font-title text-gold mb-0 fs-2">{{ area.name }}</h3>
-                <span class="small text-white-50">Sức chứa: <strong class="text-white">{{ area.capacity }}</strong></span>
+                <h3 class="dola-font-title mb-0 fs-2" style="color: var(--dola-wine);">{{ area.name }}</h3>
+                <span class="small" style="color: #6E6157;">Sức chứa: <strong style="color: #1F1A17;">{{ area.capacity }}</strong></span>
               </div>
-              <p class="text-body-dola small mb-4" style="line-height: 1.6;">{{ area.desc }}</p>
+              <p class="small mb-4" style="color: #574A40; line-height: 1.6;">{{ area.desc }}</p>
 
               <!-- Highlights table -->
               <div class="row g-2 mb-4">
                 <div class="col-6" v-for="detail in area.details" :key="detail.label">
-                  <div class="p-2 rounded-2" style="background: rgba(0,0,0,0.25); border: 1px solid var(--dola-hairline);">
-                    <div class="small text-white-50" style="font-size: 0.72rem;">{{ detail.label }}</div>
-                    <div class="text-white fw-bold small">{{ detail.value }}</div>
+                  <div class="p-2 rounded-2" style="background: var(--dola-surface-alt); border: 1px solid var(--dola-hairline);">
+                    <div class="small" style="font-size: 0.72rem; color: #8C7F75;">{{ detail.label }}</div>
+                    <div class="fw-bold small" style="color: #1F1A17;">{{ detail.value }}</div>
                   </div>
                 </div>
               </div>
 
               <!-- Tags & CTA -->
               <div class="d-flex flex-wrap gap-2 mb-4">
-                <span class="badge" style="background: rgba(214, 156, 82, 0.15); color: var(--dola-primary); border: 1px solid var(--dola-hairline);"
+                <span class="badge" style="background: rgba(184, 125, 50, 0.12); color: var(--dola-primary); border: 1px solid var(--dola-hairline);"
                   v-for="tag in area.tags" :key="tag">
                   ✓ {{ tag }}
                 </span>
               </div>
 
-              <div class="mt-auto pt-3 border-top border-dola-gold d-flex justify-content-between align-items-center">
-                <div class="small text-body-dola">Phù hợp: <strong class="text-white">{{ area.suitability }}</strong></div>
+              <div class="mt-auto pt-3 border-top d-flex justify-content-between align-items-center" style="border-color: var(--dola-hairline) !important;">
+                <div class="small" style="color: #574A40;">Phù hợp: <strong style="color: #1F1A17;">{{ area.suitability }}</strong></div>
                 <router-link to="/customer/reservation"
                   class="dola-btn-primary" style="height: 38px; font-size: 13px;">
                   Đặt Bàn
@@ -95,7 +95,7 @@ const areas = [
     icon: '🏛️',
     badge: 'Khu Vực Chính',
     capacity: '80 khách',
-    gradient: 'linear-gradient(135deg, #10302C, #184741)',
+    image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=85',
     desc: 'Không gian mở trang hoàng đèn lồng tre ấm cúng, view nhìn thẳng quầy bar và bếp mở, rất phù hợp cho các buổi gặp mặt ấm cúng.',
     suitability: 'Gặp gỡ, bữa trưa văn phòng, gia đình nhỏ',
     details: [
@@ -112,7 +112,7 @@ const areas = [
     icon: '🌿',
     badge: 'Không Gian Xanh',
     capacity: '50 khách',
-    gradient: 'linear-gradient(135deg, #0e2925, #143B36)',
+    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=85',
     desc: 'Khu vườn phủ đầy cây xanh râm mát, tiếng nước chảy róc rách bên hồ cá Koi tạo cảm giác thư giãn tuyệt đối cho thực khách.',
     suitability: 'Hẹn hò, tiệc tối lãng mạn, họp mặt bạn bè',
     details: [
@@ -129,7 +129,7 @@ const areas = [
     icon: '🏮',
     badge: 'Tầm Nhìn Đẹp',
     capacity: '60 khách',
-    gradient: 'linear-gradient(135deg, #16403a, #1d4d46)',
+    image: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&auto=format&fit=crop&q=85',
     desc: 'Nằm trên tầng cao với ô cửa kính lớn nhìn xuống phố thị về đêm, không gian yên tĩnh và riêng tư hơn dành cho các bữa tối tao nhã.',
     suitability: 'Tiệc họp mặt gia đình, kỷ niệm, liên hoan',
     details: [
@@ -146,7 +146,7 @@ const areas = [
     icon: '👑',
     badge: 'Phòng Riêng Biệt',
     capacity: '12 – 30 khách',
-    gradient: 'linear-gradient(135deg, #10302C, #234d46)',
+    image: 'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=800&auto=format&fit=crop&q=85',
     desc: 'Hệ thống phòng tiệc khép kín cách âm hoàn hảo, nội thất gỗ óc chó cao cấp cùng nhân viên phục vụ riêng biệt theo chuẩn yến tiệc.',
     suitability: 'Tiếp khách VIP, ký kết hợp đồng, sinh nhật',
     details: [
@@ -163,5 +163,24 @@ const areas = [
 <style scoped>
 .text-body-dola {
   color: var(--dola-body);
+}
+
+.area-banner-box {
+  background: var(--dola-surface-alt);
+}
+
+.area-img {
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dola-card:hover .area-img {
+  transform: scale(1.06);
+}
+
+.area-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(31, 26, 23, 0.45) 100%);
+  pointer-events: none;
 }
 </style>

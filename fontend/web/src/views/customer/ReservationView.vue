@@ -48,26 +48,26 @@
                 Nhà hàng Hương Sen đã tiếp nhận yêu cầu đặt bàn của quý khách. Nhân viên sẽ liên hệ lại trong ít phút để xác nhận.
               </p>
 
-              <div class="p-4 rounded-3 text-start mx-auto mb-4" style="max-width: 480px; background: rgba(0,0,0,0.3); border: 1px solid var(--dola-hairline);">
+              <div class="p-4 rounded-3 text-start mx-auto mb-4" style="max-width: 480px; background: var(--dola-surface-alt); border: 1px solid var(--dola-hairline); box-shadow: 0 4px 12px rgba(44,30,20,0.04);">
                 <div class="d-flex justify-content-between mb-2">
-                  <span class="text-white-50">Mã phiếu:</span>
-                  <strong class="text-gold">#{{ bookingResult?.reservationId }}</strong>
+                  <span style="color: #6E6157;">Mã phiếu:</span>
+                  <strong style="color: var(--dola-wine); font-weight: 800;">#{{ bookingResult?.reservationId }}</strong>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                  <span class="text-white-50">Khách hàng:</span>
-                  <strong class="text-white">{{ bookingResult?.customerName }}</strong>
+                  <span style="color: #6E6157;">Khách hàng:</span>
+                  <strong style="color: #1F1A17;">{{ bookingResult?.customerName }}</strong>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                  <span class="text-white-50">Số điện thoại:</span>
-                  <strong class="text-white">{{ bookingResult?.customerPhone }}</strong>
+                  <span style="color: #6E6157;">Số điện thoại:</span>
+                  <strong style="color: #1F1A17;">{{ bookingResult?.customerPhone }}</strong>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                  <span class="text-white-50">Số khách:</span>
-                  <strong class="text-white">{{ bookingResult?.guestCount }} người</strong>
+                  <span style="color: #6E6157;">Số khách:</span>
+                  <strong style="color: #1F1A17;">{{ bookingResult?.guestCount }} người</strong>
                 </div>
                 <div class="d-flex justify-content-between">
-                  <span class="text-white-50">Thời gian hẹn:</span>
-                  <strong class="text-gold">{{ formatDateTime(bookingResult?.reservationDate) }}</strong>
+                  <span style="color: #6E6157;">Thời gian hẹn:</span>
+                  <strong style="color: var(--dola-wine); font-weight: 700;">{{ formatDateTime(bookingResult?.reservationDate) }}</strong>
                 </div>
               </div>
 
@@ -86,9 +86,9 @@
               <form @submit.prevent="handleSubmitBooking">
 
                 <!-- Section 1: Customer Contact -->
-                <div class="d-flex align-items-center gap-2 mb-4 pb-2 border-bottom border-dola-gold">
+                <div class="d-flex align-items-center gap-2 mb-4 pb-2 border-bottom" style="border-color: var(--dola-hairline) !important;">
                   <span class="dola-step-badge">1</span>
-                  <h4 class="text-white fw-bold mb-0">Thông Tin Liên Hệ</h4>
+                  <h4 class="fw-bold mb-0" style="color: #1F1A17;">Thông Tin Liên Hệ</h4>
                 </div>
 
                 <div class="row g-3 mb-4">
@@ -127,9 +127,9 @@
                 </div>
 
                 <!-- Section 2: Reservation Details -->
-                <div class="d-flex align-items-center gap-2 mb-4 pb-2 border-bottom border-dola-gold">
+                <div class="d-flex align-items-center gap-2 mb-4 pb-2 border-bottom" style="border-color: var(--dola-hairline) !important;">
                   <span class="dola-step-badge">2</span>
-                  <h4 class="text-white fw-bold mb-0">Chi Tiết Lịch Hẹn</h4>
+                  <h4 class="fw-bold mb-0" style="color: #1F1A17;">Chi Tiết Lịch Hẹn</h4>
                 </div>
 
                 <div class="row g-3 mb-4">
@@ -258,9 +258,9 @@
 
             <!-- Lookup Results -->
             <div v-if="hasSearched">
-              <div v-if="lookupBookings.length === 0" class="p-4 text-center text-body-dola rounded-3" style="background: rgba(0,0,0,0.2);">
+              <div v-if="lookupBookings.length === 0" class="p-4 text-center text-body-dola rounded-3" style="background: var(--dola-surface-alt); border: 1px dashed var(--dola-hairline);">
                 <div class="fs-1 mb-2">📭</div>
-                <p class="small mb-0">Không tìm thấy phiếu đặt bàn nào với số điện thoại <strong>{{ lookupPhone }}</strong></p>
+                <p class="small mb-0">Không tìm thấy phiếu đặt bàn nào với số điện thoại <strong style="color: #1F1A17;">{{ lookupPhone }}</strong></p>
               </div>
 
               <div v-else class="d-flex flex-column gap-3">
@@ -268,11 +268,11 @@
                   v-for="b in lookupBookings"
                   :key="b.reservationId"
                   class="p-4 rounded-3"
-                  style="background: rgba(0,0,0,0.3); border: 1px solid var(--dola-hairline);"
+                  style="background: #FFFFFF; border: 1.5px solid var(--dola-hairline); box-shadow: 0 4px 14px rgba(44,30,20,0.04);"
                 >
                   <div class="d-flex justify-content-between align-items-start mb-2">
                     <div>
-                      <span class="fw-bold text-gold fs-5">Phiếu #{{ b.reservationId }}</span>
+                      <span class="fw-bold fs-5" style="color: var(--dola-wine);">Phiếu #{{ b.reservationId }}</span>
                       <span class="badge ms-2" :class="getStatusBadgeClass(b.reservationStatus)">
                         {{ getStatusText(b.reservationStatus) }}
                       </span>
@@ -280,17 +280,17 @@
                     <span class="dola-pill-badge">👥 {{ b.guestCount }} khách</span>
                   </div>
 
-                  <div class="small text-body-dola mb-2">
-                    🕒 <strong>{{ formatDateTime(b.reservationDate) }}</strong> ·
+                  <div class="small mb-2" style="color: #574A40;">
+                    🕒 <strong style="color: #1F1A17;">{{ formatDateTime(b.reservationDate) }}</strong> ·
                     🪑 {{ b.assignedTable ? `${b.assignedTable.tableName} (${b.assignedTable.areaName})` : 'Đang chờ xếp bàn' }}
                   </div>
 
-                  <div v-if="b.note" class="small text-white-50 mb-3 fst-italic">
+                  <div v-if="b.note" class="small mb-3 fst-italic" style="color: #6E6157;">
                     📝 {{ b.note }}
                   </div>
 
-                  <div class="d-flex justify-content-between align-items-center pt-2 border-top border-dola-gold">
-                    <small class="text-white-50" style="font-size: 0.75rem;">
+                  <div class="d-flex justify-content-between align-items-center pt-2 border-top" style="border-color: var(--dola-hairline) !important;">
+                    <small style="font-size: 0.75rem; color: #8C7F75;">
                       Ngày tạo: {{ formatDateTime(b.createdAt) }}
                     </small>
                     <button
@@ -315,13 +315,13 @@
 
             <!-- Policy Card -->
             <div class="dola-card p-4">
-              <h5 class="text-gold fw-bold mb-3 small text-uppercase" style="letter-spacing: 0.05em;">
+              <h5 class="fw-bold mb-3 small text-uppercase" style="letter-spacing: 0.05em; color: var(--dola-wine);">
                 📋 Chính Sách Đặt Chỗ
               </h5>
-              <ul class="list-unstyled d-flex flex-column gap-3 small text-body-dola mb-0" style="line-height: 1.6;">
-                <li>✅ <strong class="text-white">Giữ chỗ miễn phí 100%</strong>, không bắt buộc đặt cọc trước.</li>
-                <li>⏰ Nhà hàng giữ bàn tối đa <strong class="text-white">30 phút</strong> sau giờ hẹn đã đăng ký.</li>
-                <li>📞 Nhân viên sẽ liên hệ xác nhận trong vòng <strong class="text-white">15 – 30 phút</strong>.</li>
+              <ul class="list-unstyled d-flex flex-column gap-3 small mb-0" style="line-height: 1.6; color: #574A40;">
+                <li>✅ <strong style="color: #1F1A17;">Giữ chỗ miễn phí 100%</strong>, không bắt buộc đặt cọc trước.</li>
+                <li>⏰ Nhà hàng giữ bàn tối đa <strong style="color: #1F1A17;">30 phút</strong> sau giờ hẹn đã đăng ký.</li>
+                <li>📞 Nhân viên sẽ liên hệ xác nhận trong vòng <strong style="color: #1F1A17;">15 – 30 phút</strong>.</li>
                 <li>❌ Quý khách có thể tự hủy lịch trên cổng trực tuyến trước giờ hẹn.</li>
                 <li>👥 Đoàn tiệc &gt; 20 khách vui lòng gọi hotline để nhận ưu đãi set menu đặc biệt.</li>
               </ul>
@@ -330,8 +330,8 @@
             <!-- Hotline Support -->
             <div class="dola-card p-4 text-center">
               <div class="fs-1 mb-2">📞</div>
-              <h5 class="text-gold fw-bold mb-1">Hotline Đặt Tiệc Nhanh</h5>
-              <div class="display-6 fw-bold text-white mb-2 dola-font-title">1900 6868</div>
+              <h5 class="fw-bold mb-1" style="color: var(--dola-wine);">Hotline Đặt Tiệc Nhanh</h5>
+              <div class="display-6 fw-bold mb-2 dola-font-title" style="color: var(--dola-wine);">1900 6868</div>
               <p class="small text-body-dola mb-3">Tư vấn chọn món, chuẩn bị phòng tiệc VIP và trang trí sự kiện.</p>
               <a href="tel:19006868" class="dola-btn-primary w-100">
                 Gọi Ngay Cho Chúng Tôi
@@ -418,6 +418,10 @@ function resetBooking() {
 }
 
 async function handleLookup() {
+  if (!localStorage.getItem('token')) {
+    window.location.assign('/login?redirect=' + encodeURIComponent('/customer/reservation'));
+    return;
+  }
   if (!lookupPhone.value.trim()) {
     alert('Vui lòng nhập số điện thoại để tra cứu.');
     return;
@@ -434,6 +438,7 @@ async function handleLookup() {
     }
   } catch (err) {
     console.error('Lỗi tra cứu:', err);
+    alert(err.response?.status === 403 ? 'Bạn chỉ có thể tra cứu lịch đặt bàn của tài khoản mình.' : 'Không thể tra cứu. Vui lòng đăng nhập và thử lại.');
   } finally {
     loadingLookup.value = false;
   }
@@ -515,53 +520,62 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  background: var(--dola-primary);
-  color: #1b1814;
+  background: var(--dola-wine);
+  color: #FFFFFF;
   font-weight: 700;
   font-size: 14px;
+  box-shadow: 0 2px 6px rgba(122, 28, 40, 0.25);
 }
 
 .dola-counter-btn {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
-  background: var(--dola-surface-alt);
-  color: var(--dola-primary);
-  border: 1px solid var(--dola-hairline);
-  font-size: 20px;
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: var(--dola-wine);
+  border: 1.5px solid var(--dola-hairline);
+  font-size: 22px;
   font-weight: bold;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.03);
 }
 .dola-counter-btn:hover {
-  background: var(--dola-primary);
-  color: #1b1814;
+  background: var(--dola-wine);
+  color: #FFFFFF;
+  border-color: var(--dola-wine);
+  transform: translateY(-1px);
 }
 
 .dola-quick-btn {
-  background: var(--dola-surface-alt);
+  background: #FFFFFF;
   border: 1px solid var(--dola-hairline);
-  color: var(--dola-body);
+  color: #574A40;
   border-radius: 9999px;
-  padding: 4px 12px;
+  padding: 6px 14px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.03);
 }
 .dola-quick-btn:hover {
-  background: rgba(214, 156, 82, 0.2);
-  color: #FFFFFF;
+  background: var(--dola-surface-alt);
+  color: var(--dola-wine);
+  border-color: var(--dola-primary);
+  transform: translateY(-1px);
 }
 .dola-quick-btn-active {
-  background: var(--dola-primary) !important;
-  color: #1b1814 !important;
+  background: var(--dola-wine) !important;
+  border-color: var(--dola-wine) !important;
+  color: #FFFFFF !important;
   font-weight: 700;
+  box-shadow: 0 4px 12px rgba(122, 28, 40, 0.3);
 }
 </style>

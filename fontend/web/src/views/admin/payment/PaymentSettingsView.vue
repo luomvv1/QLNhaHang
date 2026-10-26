@@ -139,17 +139,30 @@
             </div>
 
             <div class="row g-3 mb-3">
-              <div class="col-md-6">
-                <label class="form-label small fw-bold text-secondary">Khóa Bí Mật Webhook (Secret Key / Token):</label>
-                <input
-                  v-model="form.webhookSecret"
-                  type="text"
-                  class="form-control font-monospace"
-                  placeholder="Ví dụ: SEN_SECRET_KEY_888"
-                />
+              <div class="col-md-7">
+                <label class="form-label small fw-bold text-secondary">Khóa Bí Mật Webhook (API Key SePay):</label>
+                <div class="input-group">
+                  <input
+                    v-model="form.webhookSecret"
+                    type="text"
+                    class="form-control font-monospace"
+                    minlength="8"
+                    autocomplete="new-password"
+                    placeholder="Ví dụ: SEN_SECRET_KEY_888 hoặc khóa SePay"
+                  />
+                  <button class="btn btn-outline-secondary btn-sm px-3" type="button" @click="copySecret" title="Sao chép khóa">
+                    {{ copiedSecret ? '✅ Đã chép' : '📋 Copy' }}
+                  </button>
+                  <button class="btn btn-outline-primary btn-sm px-3" type="button" @click="generateRandomSecret" title="Tạo khóa ngẫu nhiên">
+                    🎲 Tạo ngẫu nhiên
+                  </button>
+                </div>
+                <small class="text-muted mt-1 d-block">
+                  Dán khóa này vào mục <strong>API Key</strong> trên trang cấu hình Webhook của <a href="https://my.sepay.vn" target="_blank" rel="noopener" class="text-decoration-none fw-bold">SePay (my.sepay.vn)</a>.
+                </small>
               </div>
 
-              <div class="col-md-6">
+              <div class="col-md-5">
                 <label class="form-label small fw-bold text-secondary">Nhà Cung Cấp Cổng / Gateway:</label>
                 <input
                   v-model="form.gatewayProvider"
@@ -375,7 +388,7 @@ const form = ref({
   accountNo: '',
   accountName: '',
   branch: '',
-  webhookSecret: 'SEN_SECRET_KEY_888',
+  webhookSecret: '',
   isAutoConfirmEnabled: true,
   gatewayProvider: 'SePay / VietQR Auto'
 });
@@ -443,6 +456,24 @@ function copyWebhookUrl() {
     copied.value = true;
     setTimeout(() => { copied.value = false; }, 2000);
   }
+}
+
+const copiedSecret = ref(false);
+function copySecret() {
+  if (navigator.clipboard && form.value.webhookSecret) {
+    navigator.clipboard.writeText(form.value.webhookSecret);
+    copiedSecret.value = true;
+    setTimeout(() => { copiedSecret.value = false; }, 2000);
+  }
+}
+
+function generateRandomSecret() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
+  let result = 'SEPAY_';
+  for (let i = 0; i < 26; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  form.value.webhookSecret = result;
 }
 
 function onOrderSelectChange() {

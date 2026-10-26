@@ -1095,6 +1095,7 @@ onMounted(async () => {
   try {
     hubConnection = new signalR.HubConnectionBuilder()
       .withUrl('http://localhost:5079/hubs/restaurant', {
+        accessTokenFactory: () => localStorage.getItem('token') || '',
         skipNegotiation: true,
         transport: signalR.HttpTransportType.WebSockets
       })

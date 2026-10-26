@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'core/session_manager.dart';
 import 'core/staff_core.dart';
+import 'views/auth/intro_splash_page.dart';
 import 'views/auth/login_page.dart';
 import 'views/staff/staff_shell.dart';
 
@@ -13,6 +15,34 @@ class StaffApp extends StatefulWidget {
 
 class _StaffAppState extends State<StaffApp> {
   StaffSession? session;
+  bool showLoginPage = false;
+
+  void _setupSession(StaffSession value) {
+    value.api.onUnauthorized = () async {
+      await SessionManager.clearSession();
+      if (mounted && identical(session?.api, value.api)) {
+        setState(() {
+          session = null;
+          showLoginPage = true;
+        });
+      }
+    };
+    setState(() {
+      session = value;
+      showLoginPage = false;
+    });
+  }
+
+  Future<void> _handleLogout() async {
+    await SessionManager.clearSession();
+    session?.api.token = null;
+    if (mounted) {
+      setState(() {
+        session = null;
+        showLoginPage = false;
+      });
+    }
+  }
 
   ThemeData _buildLightTheme() {
     return ThemeData(
@@ -253,13 +283,24 @@ class _StaffAppState extends State<StaffApp> {
           themeMode: ThemeController.instance.themeMode,
           theme: _buildLightTheme(),
           darkTheme: _buildDarkTheme(),
-          home: session == null
-              ? LoginPage(onLoggedIn: (value) => setState(() => session = value))
-              : StaffShell(
+          home: session != null
+              ? StaffShell(
                   session: session!,
-                  onLogout: () => setState(() => session = null),
-                  onSessionUpdated: (updated) => setState(() => session = updated),
-                ),
+                  onLogout: _handleLogout,
+                  onSessionUpdated: (updated) async {
+                    await SessionManager.saveSession(updated);
+                    setState(() => session = updated);
+                  },
+                )
+              : showLoginPage
+                  ? LoginPage(
+                      onLoggedIn: _setupSession,
+                      onBackToIntro: () => setState(() => showLoginPage = false),
+                    )
+                  : IntroSplashPage(
+                      onContinueToWork: _setupSession,
+                      onGoToLogin: () => setState(() => showLoginPage = true),
+                    ),
         );
       },
     );

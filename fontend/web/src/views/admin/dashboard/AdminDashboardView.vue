@@ -77,7 +77,7 @@
       </div>
 
       <!-- Nhân sự -->
-      <div class="col-sm-6 col-xl-3">
+      <div v-if="isAdmin" class="col-sm-6 col-xl-3">
         <div class="card-modern p-3 h-100">
           <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
@@ -107,7 +107,7 @@
           </div>
 
           <div class="row g-3">
-            <div class="col-md-6">
+            <div v-if="isAdmin" class="col-md-6">
               <router-link to="/admin/users" class="action-shortcut-card p-3 rounded-3 d-flex align-items-center gap-3 text-decoration-none">
                 <div class="shortcut-icon bg-primary text-white">➕</div>
                 <div>
@@ -206,7 +206,7 @@
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="fw-bold m-0 text-dark">📦 Tình Trạng Kho Hàng</h5>
             <span v-if="inventorySummary.lowStockCount > 0" class="badge bg-danger">
-              ⚠️ {{ inventorySummary.lowStockCount }} sắp hết
+              ⚠️ {{ inventorySummary.lowStockCount }} cần nhập
             </span>
             <span v-else class="badge bg-success">🟢 Tồn kho an toàn</span>
           </div>
@@ -217,8 +217,16 @@
               <strong>{{ inventorySummary.totalItems }} nguyên liệu</strong>
             </div>
             <div class="d-flex justify-content-between align-items-center p-2 rounded bg-light">
-              <span class="small text-muted">Giá trị tồn kho:</span>
+              <span class="small text-muted">Giá trị lô còn dùng được:</span>
               <strong class="text-success">{{ (inventorySummary.totalValue || 0).toLocaleString('vi-VN') }} đ</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center p-2 rounded bg-light">
+              <span class="small text-muted">Lô quá hạn còn tồn:</span>
+              <strong :class="inventorySummary.expiredBatchesCount ? 'text-danger' : 'text-success'">{{ inventorySummary.expiredBatchesCount || 0 }} lô</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center p-2 rounded bg-light">
+              <span class="small text-muted">Phiếu chờ duyệt:</span>
+              <strong :class="inventorySummary.pendingReceiptCount ? 'text-warning' : 'text-success'">{{ inventorySummary.pendingReceiptCount || 0 }} phiếu</strong>
             </div>
           </div>
 
@@ -236,6 +244,7 @@ import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
 const adminName = ref(localStorage.getItem('fullName') || 'Admin');
+const isAdmin = localStorage.getItem('role') === 'admin';
 const currentDate = new Date().toLocaleDateString('vi-VN', {
   weekday: 'long',
   year: 'numeric',
@@ -268,7 +277,7 @@ onMounted(async () => {
       axios.get('http://localhost:5079/api/admin/category/list'),
       axios.get('http://localhost:5079/api/admin/food/list'),
       axios.get('http://localhost:5079/api/admin/table/list'),
-      axios.get('http://localhost:5079/api/admin/user/list'),
+      isAdmin ? axios.get('http://localhost:5079/api/admin/user/list') : Promise.resolve({ data: { data: [] } }),
       axios.get('http://localhost:5079/api/admin/inventory/summary')
     ]);
 

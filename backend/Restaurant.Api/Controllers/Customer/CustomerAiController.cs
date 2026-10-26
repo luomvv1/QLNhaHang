@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
 using System.Security.Claims;
@@ -17,6 +19,7 @@ public class AiChatRequest
     public int? ConversationId { get; set; }
     public string Message { get; set; } = string.Empty;
     public int? CustomerId { get; set; }
+    public string? ConversationToken { get; set; }
 }
 
 public class RecommendedFoodDto
@@ -37,15 +40,17 @@ public class CustomerAiController : ControllerBase
     private readonly RestaurantDbContext _dbContext;
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IDataProtector _guestProtector;
 
     public CustomerAiController(
         RestaurantDbContext dbContext,
         IConfiguration configuration,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory, IDataProtectionProvider dataProtection)
     {
         _dbContext = dbContext;
         _configuration = configuration;
         _httpClientFactory = httpClientFactory;
+        _guestProtector = dataProtection.CreateProtector("Restaurant.Ai.GuestConversation.v1");
     }
 
     private int? GetCurrentUserId()
@@ -58,6 +63,7 @@ public class CustomerAiController : ControllerBase
     /// Gửi tin nhắn tới trợ lý AI tư vấn món ăn Hương Sen (M14-R2 / UC-E06)
     /// </summary>
     [HttpPost("chat")]
+    [AllowAnonymous]
     public async Task<IActionResult> Chat([FromBody] AiChatRequest request)
     {
         if (request == null || string.IsNullOrWhiteSpace(request.Message))
@@ -67,12 +73,10 @@ public class CustomerAiController : ControllerBase
         var currentUserId = GetCurrentUserId();
 
         // 1. Xác định Customer liên kết nếu có
-        int? customerId = request.CustomerId;
-        if (!customerId.HasValue && currentUserId.HasValue)
-        {
-            var customer = await _dbContext.Customers.FirstOrDefaultAsync(c => c.UserId == currentUserId.Value);
-            if (customer != null) customerId = customer.CustomerId;
-        }
+        int? customerId = currentUserId.HasValue
+            ? await _dbContext.Customers.Where(customer => customer.UserId == currentUserId.Value)
+                .Select(customer => (int?)customer.CustomerId).FirstOrDefaultAsync() : null;
+        if (request.CustomerId.HasValue && request.CustomerId != customerId) return Forbid();
 
         // 2. Tìm hoặc tạo mới cuộc trò chuyện AiConversation
         AiConversation? conversation = null;
@@ -81,6 +85,8 @@ public class CustomerAiController : ControllerBase
             conversation = await _dbContext.AiConversations
                 .Include(c => c.AiMessages)
                 .FirstOrDefaultAsync(c => c.ConversationId == request.ConversationId.Value);
+            if (conversation == null) return NotFound();
+            if (!CanAccessConversation(conversation, customerId, request.ConversationToken)) return Forbid();
         }
 
         if (conversation == null)
@@ -184,6 +190,7 @@ public class CustomerAiController : ControllerBase
             data = new
             {
                 conversationId = conversation.ConversationId,
+                conversationToken = customerId == null ? _guestProtector.Protect(conversation.ConversationId.ToString()) : null,
                 title = conversation.Title,
                 reply = replyText,
                 recommendedFoods = recommendedFoodDetails,
@@ -196,6 +203,7 @@ public class CustomerAiController : ControllerBase
     /// Lấy lịch sử tin nhắn của một cuộc hội thoại
     /// </summary>
     [HttpGet("conversations/{id}/messages")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetConversationMessages(int id)
     {
         var conversation = await _dbContext.AiConversations
@@ -204,6 +212,10 @@ public class CustomerAiController : ControllerBase
 
         if (conversation == null)
             return NotFound(new { success = false, message = "Không tìm thấy cuộc hội thoại." });
+        var userId = GetCurrentUserId();
+        var customerId = userId.HasValue ? await _dbContext.Customers.Where(customer => customer.UserId == userId.Value)
+            .Select(customer => (int?)customer.CustomerId).FirstOrDefaultAsync() : null;
+        if (!CanAccessConversation(conversation, customerId, Request.Headers["X-Conversation-Token"])) return Forbid();
 
         var foodIdsInConv = conversation.AiMessages
             .Where(m => !string.IsNullOrEmpty(m.RecommendedFoodIds))
@@ -260,23 +272,13 @@ public class CustomerAiController : ControllerBase
     /// Lấy danh sách các cuộc hội thoại gần đây
     /// </summary>
     [HttpGet("conversations")]
+    [Authorize(Roles = "customer")]
     public async Task<IActionResult> GetConversations([FromQuery] int? customerId = null)
     {
         var currentUserId = GetCurrentUserId();
-        var query = _dbContext.AiConversations.AsQueryable();
-
-        if (customerId.HasValue)
-        {
-            query = query.Where(c => c.CustomerId == customerId.Value);
-        }
-        else if (currentUserId.HasValue)
-        {
-            var customer = await _dbContext.Customers.FirstOrDefaultAsync(c => c.UserId == currentUserId.Value);
-            if (customer != null)
-            {
-                query = query.Where(c => c.CustomerId == customer.CustomerId);
-            }
-        }
+        var customer = await _dbContext.Customers.FirstOrDefaultAsync(c => c.UserId == currentUserId);
+        if (customer == null || (customerId.HasValue && customerId != customer.CustomerId)) return Forbid();
+        var query = _dbContext.AiConversations.Where(c => c.CustomerId == customer.CustomerId);
 
         var conversations = await query
             .OrderByDescending(c => c.UpdatedAt)
@@ -298,6 +300,14 @@ public class CustomerAiController : ControllerBase
     // ==============================================================
     // HELPER: GỌI GOOGLE GEMINI API
     // ==============================================================
+    private bool CanAccessConversation(AiConversation conversation, int? customerId, string? guestToken)
+    {
+        if (conversation.CustomerId.HasValue) return customerId == conversation.CustomerId;
+        if (string.IsNullOrWhiteSpace(guestToken)) return false;
+        try { return _guestProtector.Unprotect(guestToken) == conversation.ConversationId.ToString(); }
+        catch (System.Security.Cryptography.CryptographicException) { return false; }
+    }
+
     private async Task<(string Reply, List<int> FoodIds)> CallGeminiApiAsync(
         string apiKey,
         string userMessage,

@@ -25,6 +25,8 @@ class _OrderPageState extends State<OrderPage>
   bool loading = true;
   String? error;
   Timer? _realtimeTimer;
+  bool _polling = false;
+  bool _acting = false;
 
   int get tableId => integer(widget.table['tableId']);
   Map<String, dynamic>? get order =>
@@ -57,15 +59,33 @@ class _OrderPageState extends State<OrderPage>
   }
 
   Future<void> _pollOrderSilently() async {
+    if (_polling || _acting) return;
+    _polling = true;
     try {
-      final res = await widget.api.get('/staff/orders/table/$tableId');
-      final currentDetail = jsonMap(res);
-      if (mounted && currentDetail['order'] != null) {
-        setState(() => detail = currentDetail);
+      final results = await Future.wait<dynamic>([
+        widget.api.get('/staff/orders/table/$tableId'),
+        widget.api.get('/staff/orders/menu'),
+      ]);
+      final currentDetail = jsonMap(results[0]);
+      if (currentDetail['order'] == null) {
+        if (mounted) {
+          _realtimeTimer?.cancel();
+          Navigator.of(context).pop(true);
+        }
+        return;
+      }
+      final menu = jsonMap(results[1]);
+      if (mounted && !_acting) {
+        setState(() {
+          detail = currentDetail;
+          foods = jsonMaps(menu['foods']);
+          categories = jsonMaps(menu['categories']);
+          error = currentDetail['order'] == null ? 'Order đã đóng. Vui lòng quay lại sơ đồ bàn.' : null;
+        });
       }
     } catch (_) {
       // Chạy ngầm, không hiện lỗi
-    }
+    } finally { _polling = false; }
   }
 
   Future<void> load({bool silent = false}) async {
@@ -82,7 +102,11 @@ class _OrderPageState extends State<OrderPage>
       ]);
       final currentDetail = jsonMap(results[0]);
       if (currentDetail['order'] == null) {
-        throw ApiException('Order không còn mở. Vui lòng quay về sơ đồ bàn.');
+        if (mounted) {
+          _realtimeTimer?.cancel();
+          Navigator.of(context).pop(true);
+        }
+        return;
       }
       final menu = jsonMap(results[1]);
       if (mounted) {
@@ -90,6 +114,7 @@ class _OrderPageState extends State<OrderPage>
           detail = currentDetail;
           categories = jsonMaps(menu['categories']);
           foods = jsonMaps(menu['foods']);
+          error = null;
         });
       }
     } on ApiException catch (exception) {
@@ -104,17 +129,21 @@ class _OrderPageState extends State<OrderPage>
   }
 
   Future<void> action(Future<dynamic> Function() request, String message) async {
+    if (_acting) return;
+    _acting = true;
     try {
       await request();
       if (mounted) showMessage(context, message);
       await load(silent: true);
     } on ApiException catch (exception) {
       if (mounted) showMessage(context, exception.message, isError: true);
-    }
+    } finally { _acting = false; }
   }
 
   // Thêm món vào order
   Future<void> addFood(Map<String, dynamic> food) async {
+    if (orderId <= 0) return;
+    if (food['canOrder'] == false) return;
     final variants = jsonMaps(food['variants']);
     if (variants.isEmpty) {
       showMessage(context, 'Món này chưa có biến thể đang mở bán.', isError: true);
@@ -207,6 +236,17 @@ class _OrderPageState extends State<OrderPage>
     );
   }
 
+  Future<String?> cancellationReason(String title) async {
+    return askCancellationReason(context, title);
+  }
+
+  Future<void> cancelSentItem(Map<String, dynamic> item) async {
+    final reason = await cancellationReason('Hủy ${text(item['foodNameSnapshot'])}');
+    if (reason == null || !mounted) return;
+    await action(() => widget.api.post('/staff/orders/$orderId/items/${integer(item['orderItemId'])}/cancel',
+      data: {'reason': reason}), 'Đã hủy món và cập nhật tiền đơn.');
+  }
+
   // Menu tác vụ bàn
   Future<void> tableActions() async {
     final choice = await showModalBottomSheet<String>(
@@ -251,6 +291,11 @@ class _OrderPageState extends State<OrderPage>
     if (!mounted || choice == null) return;
 
     if (choice == 'cancel') {
+      if (items.any((item) => text(item['itemStatus']) != 'cancelled' &&
+          (item['canCancel'] == false || ['cooking', 'ready', 'served'].contains(text(item['itemStatus']))))) {
+        showMessage(context, 'Đã có món bắt đầu nấu, không được hủy order.', isError: true);
+        return;
+      }
       final confirm = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
@@ -272,33 +317,53 @@ class _OrderPageState extends State<OrderPage>
         ),
       );
       if (confirm == true) {
-        await action(
-          () => widget.api.post('/staff/orders/$orderId/cancel'),
-          'Đã hủy order thành công.',
-        );
-        if (mounted) Navigator.pop(context);
+        final reason = await cancellationReason('Lý do hủy order');
+        if (reason == null || !mounted) return;
+        try {
+          await widget.api.post('/staff/orders/$orderId/cancel', data: {'reason': reason});
+          if (mounted) Navigator.pop(context);
+        } on ApiException catch (exception) {
+          if (mounted) showMessage(context, exception.message, isError: true);
+        }
       }
       return;
     }
 
     try {
       final map = jsonMaps(await widget.api.get('/staff/orders/tables'));
+      final currentArea = text(widget.table['areaName']).trim();
       final allowed = choice == 'merge'
           ? map
-                .where((t) => text(t['tableStatus']) == 'serving' && integer(t['tableId']) != tableId)
+                .where((t) =>
+                    text(t['tableStatus']) == 'serving' &&
+                    integer(t['tableId']) != tableId &&
+                    text(t['areaName']).trim().toLowerCase() == currentArea.toLowerCase())
                 .toList()
-          : map.where((t) => text(t['tableStatus']) == 'empty').toList();
+          : choice == 'link'
+          ? map
+                .where((t) =>
+                    text(t['tableStatus']) == 'empty' &&
+                    integer(t['tableId']) != tableId &&
+                    text(t['areaName']).trim().toLowerCase() == currentArea.toLowerCase())
+                .toList()
+          : map.where((t) => text(t['tableStatus']) == 'empty' && integer(t['tableId']) != tableId).toList();
 
       if (!mounted) return;
       final target = await showModalBottomSheet<Map<String, dynamic>>(
         context: context,
-        showDragHandle: true,
+        isScrollControlled: true,
+        showDragHandle: false,
+        backgroundColor: Colors.transparent,
         builder: (_) => TablePicker(
           title: choice == 'switch'
               ? 'Chọn bàn trống để chuyển đến'
               : choice == 'link'
-              ? 'Chọn bàn trống để ghép thêm'
-              : 'Chọn order bàn cần gộp',
+              ? 'Ghép thêm bàn trống'
+              : 'Gộp hai order bàn',
+          subtitle: 'Bàn gốc: ${text(widget.table['tableName'])} · $currentArea',
+          currentTable: widget.table,
+          areaName: currentArea,
+          actionType: choice,
           tables: allowed,
         ),
       );
@@ -335,6 +400,31 @@ class _OrderPageState extends State<OrderPage>
 
   // Danh sách các món trong Order (Phân tách món mới pending và món đã gửi bếp)
   Widget _buildOrderList(List<Map<String, dynamic>> currentItems) {
+    final ord = order;
+    if (ord == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle_outline, color: Color(0xFF10B981), size: 54),
+              const SizedBox(height: 14),
+              const Text(
+                'Bàn đã hoàn tất thanh toán.',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonal(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Quay về sơ đồ bàn'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final isDark = isDarkMode(context);
     final pendingItems = currentItems.where((i) => text(i['itemStatus']) == 'pending').toList();
     final confirmedItems = currentItems.where((i) => text(i['itemStatus']) != 'pending').toList();
@@ -344,7 +434,7 @@ class _OrderPageState extends State<OrderPage>
       padding: const EdgeInsets.all(16),
       children: [
         // Thẻ tóm tắt Order
-        OrderSummary(table: widget.table, order: order!),
+        OrderSummary(table: widget.table, order: ord),
         const SizedBox(height: 12),
 
         // CẢNH BÁO BẾP BÁO XONG MÓN CẦN BƯNG RA BÀN
@@ -498,6 +588,7 @@ class _OrderPageState extends State<OrderPage>
               padding: const EdgeInsets.only(bottom: 8),
               child: OrderItem(
                 item: item,
+                onDelete: text(item['itemStatus']) == 'confirmed' && item['canCancel'] != false ? () => cancelSentItem(item) : null,
                 onServe: text(item['itemStatus']) == 'ready'
                     ? () => action(
                         () => widget.api.patch(
@@ -658,15 +749,14 @@ class _OrderPageState extends State<OrderPage>
                       style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: brand),
                       onPressed: () async {
                         final navigator = Navigator.of(context);
-                        final paid = await navigator.push<bool>(
+                        await navigator.push<bool>(
                           MaterialPageRoute(
                             builder: (_) => PaymentPage(api: widget.api, orderId: orderId),
                           ),
                         );
-                        if (paid == true && mounted) {
-                          navigator.pop();
-                        } else if (mounted) {
-                          await load(silent: true);
+                        if (mounted) {
+                          _realtimeTimer?.cancel();
+                          navigator.pop(true);
                         }
                       },
                       icon: const Icon(Icons.payments, size: 18),
@@ -690,7 +780,7 @@ class AddFoodSheet extends StatefulWidget {
 }
 
 class _AddFoodSheetState extends State<AddFoodSheet> {
-  late Map<String, dynamic> variant = widget.variants.first;
+  late Map<String, dynamic> variant = widget.variants.firstWhere((v) => v['canOrder'] != false);
   final note = TextEditingController();
   int quantity = 1;
 
@@ -771,13 +861,16 @@ class _AddFoodSheetState extends State<AddFoodSheet> {
               const SizedBox(height: 16),
               DropdownButtonFormField<Map<String, dynamic>>(
                 initialValue: variant,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Kích cỡ / Biến thể món'),
                 items: widget.variants
                     .map(
                       (item) => DropdownMenuItem(
                         value: item,
+                        enabled: item['canOrder'] != false,
                         child: Text(
-                          '${text(item['variantName'])} · ${money(number(item['price']))}',
+                          '${text(item['variantName'])} · ${money(number(item['price']))}${item['canOrder'] == false ? ' · ${text(item['availabilityText'], 'Hết món')}' : ''}',
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),

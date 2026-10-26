@@ -526,7 +526,7 @@ public class AdminAuditController : ControllerBase
 
             try
             {
-                await _hubContext.Clients.All.SendAsync("InventoryChanged", new
+                await _hubContext.PublishAsync(_dbContext, "InventoryChanged", new
                 {
                     action = "audit_completed",
                     auditCode = audit.AuditCode,

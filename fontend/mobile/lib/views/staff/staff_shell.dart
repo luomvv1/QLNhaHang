@@ -25,6 +25,16 @@ class StaffShell extends StatefulWidget {
 
 class _StaffShellState extends State<StaffShell> {
   int index = 0;
+  String? tablesFilter;
+  String? tablesActionPrompt;
+
+  void _navigateToTables({String? filter, String? prompt}) {
+    setState(() {
+      index = 1;
+      tablesFilter = filter;
+      tablesActionPrompt = prompt;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,13 +44,28 @@ class _StaffShellState extends State<StaffShell> {
     final pages = [
       HomePage(
         session: widget.session,
-        onTables: () => setState(() => index = 1),
+        onTables: () => _navigateToTables(filter: 'all', prompt: null),
         onReservations: () => setState(() => index = 2),
         onInvoices: () => setState(() => index = 3),
+        onOpenNewOrder: () => _navigateToTables(filter: 'empty', prompt: 'open_table'),
+        onServingOrder: () => _navigateToTables(filter: 'serving', prompt: 'add_order'),
+        onTransferMerge: () => _navigateToTables(filter: 'serving', prompt: 'transfer_merge'),
+        onPayment: () => _navigateToTables(filter: 'serving', prompt: 'payment'),
+        onKitchenReady: () => _navigateToTables(filter: 'ready', prompt: 'kitchen_ready'),
       ),
-      TablesPage(api: widget.session.api),
+      TablesPage(
+        api: widget.session.api,
+        initialFilter: tablesFilter,
+        actionPrompt: tablesActionPrompt,
+        onClearPrompt: () {
+          setState(() {
+            tablesFilter = 'all';
+            tablesActionPrompt = null;
+          });
+        },
+      ),
       ReservationsPage(api: widget.session.api),
-      InvoicesPage(api: widget.session.api),
+      InvoicesPage(api: widget.session.api, session: widget.session),
       AccountPage(
         session: widget.session,
         onLogout: widget.onLogout,

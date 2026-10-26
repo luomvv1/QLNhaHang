@@ -1,15 +1,15 @@
 <template>
+  <InventoryWorkspaceNav />
   <main class="reconciliation-page">
     <header class="page-head">
       <div>
         <div class="eyebrow">BẾP & KHO</div>
-        <h1>Đối soát nguyên liệu</h1>
-        <p>Ghi nhận nguyên liệu đã dùng, hoàn lại kho và hủy trong ngày.</p>
+        <h1>Hoàn / hủy cuối ca</h1>
       </div>
       <div class="head-actions">
         <label class="date-field">Ngày làm việc <input v-model="selectedDate" type="date" @change="loadReport" /></label>
-        <button class="button secondary" type="button" :disabled="loading" @click="loadReport" title="Tải lại dữ liệu">↻ <span>Làm mới</span></button>
-        <button class="button secondary" type="button" :disabled="!report?.receipts?.length && !report?.warehouseWaste?.length" @click="downloadCsv">↓ <span>Xuất CSV</span></button>
+        <button class="button secondary" type="button" :disabled="loading" @click="loadReport" title="Tải lại dữ liệu"><RefreshCw :size="16" /> <span>Làm mới</span></button>
+        <button class="button secondary" type="button" :disabled="!report?.receipts?.length && !report?.warehouseWaste?.length" @click="downloadCsv"><Download :size="16" /> <span>Xuất CSV</span></button>
       </div>
     </header>
 
@@ -47,8 +47,10 @@
             <span :class="activeReceipt.lines.every(line => line.reconciledAt) ? 'status done' : 'status pending'">{{ activeReceipt.lines.every(line => line.reconciledAt) ? 'Đã đối soát' : 'Cần đối soát' }}</span>
           </div>
 
-          <div class="equation">Đã dùng tính từ số suất đã phục vụ × định lượng BOM. Đã xuất = Đã dùng + Hoàn kho + Hủy tại bếp.</div>
           <div v-if="saveError" class="message error" role="alert">{{ saveError }}</div>
+          <div v-if="activeReservedPortions > 0" class="message warning" role="status">
+            Còn {{ quantity(activeReservedPortions) }} suất đang giữ chỗ. Chưa thể hoàn / hủy nguyên liệu của phiếu này.
+          </div>
           <div v-if="successMessage" class="message success" role="status">{{ successMessage }}</div>
 
           <div class="line-head" aria-hidden="true"><span>Nguyên liệu / lô</span><span>Đã xuất</span><span>Đã dùng theo phục vụ</span><span>Hoàn (dùng ngày mai)</span><span>Hủy tại bếp</span></div>
@@ -66,7 +68,7 @@
 
           <div v-if="!activeReceipt.lines.every(line => line.reconciledAt)" class="detail-footer">
             <label>Ghi chú bàn giao <input v-model.trim="note" type="text" maxlength="300" placeholder="Ca sáng, ca tối hoặc người bàn giao" /></label>
-            <button type="button" class="button primary" :disabled="saving || hasInvalidLine || report.usageErrors?.length" @click="completeReceipt">{{ saving ? 'Đang chốt...' : 'Chốt đối soát phiếu' }}</button>
+            <button type="button" class="button primary" :disabled="saving || hasInvalidLine || report.usageErrors?.length || activeReservedPortions > 0" @click="completeReceipt">{{ saving ? 'Đang chốt...' : 'Chốt hoàn / hủy' }}</button>
           </div>
           <div v-else class="detail-footer closed-note">Đã ghi nhận. Phiếu hoàn và phiếu hủy có thể xem tại <router-link to="/admin/stock-receipts">Phiếu kho</router-link>.</div>
         </section>
@@ -117,11 +119,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import InventoryWorkspaceNav from '@/components/InventoryWorkspaceNav.vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { Download, RefreshCw } from '@lucide/vue';
+import signalRService from '@/services/signalr';
 import { useRoute } from 'vue-router';
 import axios from 'axios';
 
-const API = 'http://localhost:5079/api/admin/inventory';
+const API = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/inventory`;
 const route = useRoute();
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
 const selectedDate = ref(today);
@@ -141,6 +146,7 @@ const items = ref([]);
 const batches = ref([]);
 const warehouseRows = ref([]);
 const activeReceipt = computed(() => report.value?.receipts?.find(r => r.receiptId === activeReceiptId.value));
+const activeReservedPortions = computed(() => report.value?.receiptReservations?.find(r => r.receiptId === activeReceiptId.value)?.reservedPortions || 0);
 const hasInvalidLine = computed(() => (activeReceipt.value?.lines || []).some(line => {
   const row = draft.value[line.sourceDetailId];
   return !line.reconciledAt && (!row || !isValidAmount(row.returnedQuantity) || !isValidAmount(row.wastedQuantity)
@@ -182,16 +188,16 @@ function selectReceipt(receipt) {
   successMessage.value = '';
 }
 
-async function loadReport() {
-  loading.value = true;
+async function loadReport({ preserveDraft = false } = {}) {
+  if (!preserveDraft) loading.value = true;
   loadError.value = '';
   try {
     const response = await axios.get(`${API}/kitchen-reconciliation`, { params: { date: selectedDate.value } });
     report.value = response.data;
     const current = report.value.receipts.find(r => r.receiptId === activeReceiptId.value);
     const receipt = current || report.value.receipts.find(r => r.lines.some(line => !line.reconciledAt)) || report.value.receipts[0];
-    if (receipt) selectReceipt(receipt);
-    else activeReceiptId.value = null;
+    if (!receipt) activeReceiptId.value = null;
+    else if (!(preserveDraft && current)) selectReceipt(receipt);
   } catch (error) { report.value = null; activeReceiptId.value = null; loadError.value = message(error, 'Không tải được báo cáo đối soát.'); }
   finally { loading.value = false; }
 }
@@ -208,7 +214,7 @@ async function loadCatalog() {
 }
 
 async function completeReceipt() {
-  if (!activeReceipt.value || hasInvalidLine.value || report.value?.usageErrors?.length) return;
+  if (!activeReceipt.value || hasInvalidLine.value || report.value?.usageErrors?.length || activeReservedPortions.value > 0) return;
   if (!confirm(`Chốt đối soát ${activeReceipt.value.receiptCode}? Số lượng hoàn sẽ nhập lại kho ngay.`)) return;
   saving.value = true;
   saveError.value = '';
@@ -295,11 +301,14 @@ function downloadCsv() {
   URL.revokeObjectURL(url);
 }
 
+const refreshPortions = () => loadReport({ preserveDraft: true });
 onMounted(async () => {
   warehouseRows.value = [newWarehouseRow()];
+  signalRService.on('PortionAvailabilityChanged', refreshPortions);
   await Promise.all([loadReport(), loadCatalog()]);
   selectBatchFromQuery();
 });
+onUnmounted(() => signalRService.off('PortionAvailabilityChanged', refreshPortions));
 </script>
 
 <style scoped>
@@ -314,7 +323,7 @@ onMounted(async () => {
 .date-field, .detail-footer label, .warehouse-fields label, .reason-field { display: grid; gap: 5px; color: #425750; font-size: 13px; font-weight: 600; }
 input, select { width: 100%; min-height: 40px; padding: 7px 9px; border: 1px solid #cad7d2; border-radius: 5px; color: #182925; background: #fff; font: inherit; }
 input:focus, select:focus, button:focus-visible { outline: 2px solid #10896a; outline-offset: 2px; }
-.button { min-height: 40px; padding: 8px 13px; border: 1px solid transparent; border-radius: 5px; font-weight: 700; white-space: nowrap; }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 8px 13px; border: 1px solid transparent; border-radius: 5px; font-weight: 600; white-space: nowrap; }
 .button:disabled { opacity: .55; cursor: not-allowed; }
 .button.primary { background: #08765d; color: #fff; }.button.secondary { background: #fff; color: #25433a; border-color: #cbd9d3; }.button.danger { background: #b53636; color: #fff; }
 .view-tabs { display: inline-flex; margin-bottom: 18px; padding: 3px; border: 1px solid #d3ded9; border-radius: 6px; background: #eaf0ed; }
@@ -333,6 +342,13 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid #10896a; ou
 .detail-footer { border-top: 1px solid #e8eeea; padding: 15px 18px; }.detail-footer label { flex: 1; max-width: 430px; }.closed-note { justify-content: flex-start; color: #52665d; }.closed-note a { color: #08765d; }
 .warehouse-form { padding-bottom: 16px; }.section-subtitle { padding: 9px 16px 5px; }.warehouse-row { margin: 10px 16px; padding: 12px; border: 1px solid #e1e9e4; border-radius: 5px; }.row-title { display: flex; justify-content: space-between; margin-bottom: 10px; }.text-button { border: 0; background: transparent; color: #b53636; font-weight: 700; }.warehouse-fields { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 120px minmax(170px, 1fr); gap: 10px; }.warehouse-actions { padding: 6px 16px; }.warehouse-history { overflow: hidden; }.history-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #e8eeea; }.history-total { display: flex; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #f2f7f4; }
 .empty { padding: 40px 18px; text-align: center; color: #688077; border: 1px dashed #cad7d2; background: #fff; border-radius: 5px; }.empty.small { padding: 25px 12px; border: 0; }.message { margin: 10px 16px; padding: 9px 12px; border-radius: 5px; font-size: 13px; }.message.error { background: #fff0ed; color: #a52e2e; }.message.success { background: #ebf8f0; color: #0a704d; }
+.message.warning { background: #fff7df; color: #87520b; border-left: 3px solid #be820e; }
+.receipt-detail, .warehouse-form, .warehouse-history, .daily-report { min-width: 0; border-radius: 0; border-left: 0; border-right: 0; }
+.metrics { gap: 0; padding: 14px 0; border-block: 1px solid #dbe5df; }
+.metrics > div { background: transparent; border: 0; border-radius: 0; border-right: 1px solid #dbe5df; }
+.metrics > div:last-child { border-right: 0; }
+.receipt-option-top, .detail-head { flex-wrap: wrap; }
+.receipt-option-top strong, .detail-head h2 { overflow-wrap: anywhere; }
 @media (max-width: 1050px) { .workspace, .warehouse-layout { grid-template-columns: 1fr; }.receipt-list { display: flex; overflow-x: auto; }.receipt-list .section-title { min-width: 130px; }.receipt-option { min-width: 220px; }.warehouse-fields { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 690px) { .reconciliation-page { padding: 12px; }.page-head { align-items: stretch; flex-direction: column; }.head-actions { align-items: end; }.date-field { flex: 1; }.metrics { grid-template-columns: 1fr 1fr; }.line-head { display: none; }.ingredient-line { grid-template-columns: 1fr 1fr; }.ingredient-name { grid-column: 1 / -1; }.mobile-label { display: block; color: #688077; font-size: 11px; }.quantity-cell { min-width: 0; }.detail-footer, .warehouse-actions, .daily-row { align-items: stretch; flex-direction: column; }.daily-amounts { justify-content: flex-start; text-align: left; }.detail-footer label { max-width: none; }.warehouse-fields { grid-template-columns: 1fr; } }
 </style>

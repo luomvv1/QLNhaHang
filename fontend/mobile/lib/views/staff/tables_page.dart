@@ -7,8 +7,18 @@ import 'payment_page.dart';
 import 'shared_widgets.dart';
 
 class TablesPage extends StatefulWidget {
-  const TablesPage({super.key, required this.api});
+  const TablesPage({
+    super.key,
+    required this.api,
+    this.initialFilter,
+    this.actionPrompt,
+    this.onClearPrompt,
+  });
+
   final ApiClient api;
+  final String? initialFilter;
+  final String? actionPrompt;
+  final VoidCallback? onClearPrompt;
 
   @override
   State<TablesPage> createState() => _TablesPageState();
@@ -18,6 +28,9 @@ class _TablesPageState extends State<TablesPage> {
   List<Map<String, dynamic>> tables = [];
   String filter = 'all';
   String? areaFilter;
+  String? actionPrompt;
+  final TextEditingController searchCtrl = TextEditingController();
+  String searchQuery = '';
   bool loading = true;
   String? error;
   Timer? _realtimeTimer;
@@ -25,13 +38,40 @@ class _TablesPageState extends State<TablesPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialFilter != null) {
+      filter = widget.initialFilter!;
+    }
+    actionPrompt = widget.actionPrompt;
     loadTables();
     _startRealtimePolling();
   }
 
   @override
+  void didUpdateWidget(covariant TablesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialFilter != null &&
+        (widget.initialFilter != oldWidget.initialFilter ||
+            widget.actionPrompt != oldWidget.actionPrompt)) {
+      setState(() {
+        filter = widget.initialFilter!;
+        actionPrompt = widget.actionPrompt;
+      });
+    }
+  }
+
+  void clearFilterAndPrompt() {
+    setState(() {
+      filter = 'all';
+      areaFilter = null;
+      actionPrompt = null;
+    });
+    widget.onClearPrompt?.call();
+  }
+
+  @override
   void dispose() {
     _realtimeTimer?.cancel();
+    searchCtrl.dispose();
     super.dispose();
   }
 
@@ -121,6 +161,27 @@ class _TablesPageState extends State<TablesPage> {
         'Bàn này đang ${tableStatusText(status).toLowerCase()}.',
       );
       return;
+    }
+
+    // Nếu đang ở chế độ Chuyển / Gộp bàn thì mở ngay menu thao tác
+    if (actionPrompt == 'transfer_merge') {
+      await showTableActions(table);
+      return;
+    }
+
+    // Nếu đang ở chế độ Thanh toán POS thì mở ngay trang thanh toán
+    if (actionPrompt == 'payment') {
+      final order = table['activeOrder'] is Map ? jsonMap(table['activeOrder']) : null;
+      final orderId = order != null ? integer(order['orderId']) : 0;
+      if (orderId > 0) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PaymentPage(api: widget.api, orderId: orderId),
+          ),
+        );
+        if (mounted) await loadTables(silent: true);
+        return;
+      }
     }
 
     await Navigator.of(context).push(
@@ -229,7 +290,6 @@ class _TablesPageState extends State<TablesPage> {
       return;
     }
 
-    final tableId = integer(table['tableId']);
     final order = table['activeOrder'] is Map ? jsonMap(table['activeOrder']) : null;
     final orderId = order != null ? integer(order['orderId']) : 0;
 
@@ -241,15 +301,15 @@ class _TablesPageState extends State<TablesPage> {
         table: table,
         onSwitch: () async {
           Navigator.pop(sheet);
-          _handleSwitchTable(tableId);
+          _handleSwitchTable(table);
         },
         onLink: () async {
           Navigator.pop(sheet);
-          _handleLinkTable(tableId);
+          _handleLinkTable(table);
         },
         onMerge: () async {
           Navigator.pop(sheet);
-          _handleMergeTable(tableId);
+          _handleMergeTable(table);
         },
         onPay: () {
           Navigator.pop(sheet);
@@ -287,8 +347,11 @@ class _TablesPageState extends State<TablesPage> {
             ),
           );
           if (confirm == true) {
+            if (!mounted) return;
+            final reason = await askCancellationReason(context, 'Lý do hủy order');
+            if (reason == null || !mounted) return;
             try {
-              await widget.api.post('/staff/orders/$orderId/cancel');
+              await widget.api.post('/staff/orders/$orderId/cancel', data: {'reason': reason});
               if (mounted) showMessage(context, 'Đã hủy order thành công.');
               await loadTables(silent: true);
             } on ApiException catch (e) {
@@ -300,16 +363,24 @@ class _TablesPageState extends State<TablesPage> {
     );
   }
 
-  Future<void> _handleSwitchTable(int tableId) async {
+  Future<void> _handleSwitchTable(Map<String, dynamic> currentTable) async {
+    final tableId = integer(currentTable['tableId']);
+    final currentArea = text(currentTable['areaName']).trim();
     try {
       final map = jsonMaps(await widget.api.get('/staff/orders/tables'));
-      final emptyTables = map.where((t) => text(t['tableStatus']) == 'empty').toList();
+      final emptyTables = map.where((t) => text(t['tableStatus']) == 'empty' && integer(t['tableId']) != tableId).toList();
       if (!mounted) return;
       final target = await showModalBottomSheet<Map<String, dynamic>>(
         context: context,
-        showDragHandle: true,
+        isScrollControlled: true,
+        showDragHandle: false,
+        backgroundColor: Colors.transparent,
         builder: (_) => TablePicker(
-          title: 'Chọn bàn trống để chuyển đến',
+          title: 'Đổi sang bàn trống khác',
+          subtitle: 'Bàn hiện tại: ${text(currentTable['tableName'])}',
+          currentTable: currentTable,
+          areaName: currentArea,
+          actionType: 'switch',
           tables: emptyTables,
         ),
       );
@@ -326,16 +397,31 @@ class _TablesPageState extends State<TablesPage> {
     }
   }
 
-  Future<void> _handleLinkTable(int tableId) async {
+  Future<void> _handleLinkTable(Map<String, dynamic> currentTable) async {
+    final tableId = integer(currentTable['tableId']);
+    final currentArea = text(currentTable['areaName']).trim();
     try {
       final map = jsonMaps(await widget.api.get('/staff/orders/tables'));
-      final emptyTables = map.where((t) => text(t['tableStatus']) == 'empty').toList();
+      // Chỉ cho phép ghép bàn trống trong CÙNG KHU VỰC
+      final emptyTables = map.where((t) {
+        final isEmpty = text(t['tableStatus']) == 'empty';
+        final isSameArea = text(t['areaName']).trim().toLowerCase() == currentArea.toLowerCase();
+        final isDiff = integer(t['tableId']) != tableId;
+        return isEmpty && isSameArea && isDiff;
+      }).toList();
+
       if (!mounted) return;
       final target = await showModalBottomSheet<Map<String, dynamic>>(
         context: context,
-        showDragHandle: true,
+        isScrollControlled: true,
+        showDragHandle: false,
+        backgroundColor: Colors.transparent,
         builder: (_) => TablePicker(
-          title: 'Chọn bàn trống để ghép thêm',
+          title: 'Ghép thêm bàn trống',
+          subtitle: 'Bàn gốc: ${text(currentTable['tableName'])} · $currentArea',
+          currentTable: currentTable,
+          areaName: currentArea,
+          actionType: 'link',
           tables: emptyTables,
         ),
       );
@@ -357,18 +443,31 @@ class _TablesPageState extends State<TablesPage> {
     }
   }
 
-  Future<void> _handleMergeTable(int tableId) async {
+  Future<void> _handleMergeTable(Map<String, dynamic> currentTable) async {
+    final tableId = integer(currentTable['tableId']);
+    final currentArea = text(currentTable['areaName']).trim();
     try {
       final map = jsonMaps(await widget.api.get('/staff/orders/tables'));
-      final servingTables = map.where(
-        (t) => text(t['tableStatus']) == 'serving' && integer(t['tableId']) != tableId,
-      ).toList();
+      // Chỉ cho phép gộp hai order bàn trong CÙNG KHU VỰC
+      final servingTables = map.where((t) {
+        final isServing = text(t['tableStatus']) == 'serving';
+        final isSameArea = text(t['areaName']).trim().toLowerCase() == currentArea.toLowerCase();
+        final isDiff = integer(t['tableId']) != tableId;
+        return isServing && isSameArea && isDiff;
+      }).toList();
+
       if (!mounted) return;
       final target = await showModalBottomSheet<Map<String, dynamic>>(
         context: context,
-        showDragHandle: true,
+        isScrollControlled: true,
+        showDragHandle: false,
+        backgroundColor: Colors.transparent,
         builder: (_) => TablePicker(
-          title: 'Chọn order bàn cần gộp chung',
+          title: 'Gộp hai order bàn',
+          subtitle: 'Bàn gốc: ${text(currentTable['tableName'])} · $currentArea',
+          currentTable: currentTable,
+          areaName: currentArea,
+          actionType: 'merge',
           tables: servingTables,
         ),
       );
@@ -399,30 +498,43 @@ class _TablesPageState extends State<TablesPage> {
         .toSet()
         .toList();
 
-    var visible = tables;
-    if (filter != 'all') {
-      visible = visible
-          .where((table) => text(table['tableStatus']) == filter)
-          .toList();
-    }
-    if (areaFilter != null) {
-      visible = visible
-          .where((table) => text(table['areaName']) == areaFilter)
-          .toList();
-    }
+    final serving = tables.where((t) => text(t['tableStatus']) == 'serving').length;
+    final empty = tables.where((t) => text(t['tableStatus']) == 'empty').length;
+    final reserved = tables.where((t) => text(t['tableStatus']) == 'reserved').length;
+    final cleaning = tables.where((t) => text(t['tableStatus']) == 'cleaning').length;
 
-    final serving = tables
-        .where((table) => text(table['tableStatus']) == 'serving')
-        .length;
-    final empty = tables
-        .where((table) => text(table['tableStatus']) == 'empty')
-        .length;
-    final reserved = tables
-        .where((table) => text(table['tableStatus']) == 'reserved')
-        .length;
-    final cleaning = tables
-        .where((table) => text(table['tableStatus']) == 'cleaning')
-        .length;
+    final query = searchQuery.trim().toLowerCase();
+    final visible = tables.where((table) {
+      final status = text(table['tableStatus']);
+      if (filter != 'all') {
+        if (filter == 'ready') {
+          final order = table['activeOrder'] is Map ? jsonMap(table['activeOrder']) : null;
+          final readyCount = order != null ? integer(order['readyCount']) : 0;
+          if (readyCount <= 0) return false;
+        } else if (status != filter) {
+          return false;
+        }
+      }
+      final area = text(table['areaName']);
+      if (areaFilter != null && area != areaFilter) return false;
+      if (query.isNotEmpty) {
+        final name = text(table['tableName']).toLowerCase();
+        final code = text(table['tableCode']).toLowerCase();
+        final areaStr = text(table['areaName']).toLowerCase();
+        final order = table['activeOrder'] is Map ? jsonMap(table['activeOrder']) : null;
+        final orderId = order != null ? '${order['orderId']}' : '';
+        final res = table['reservation'] is Map ? jsonMap(table['reservation']) : null;
+        final custName = res != null ? text(res['customerName']).toLowerCase() : '';
+        if (!name.contains(query) &&
+            !code.contains(query) &&
+            !areaStr.contains(query) &&
+            !orderId.contains(query) &&
+            !custName.contains(query)) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -447,18 +559,19 @@ class _TablesPageState extends State<TablesPage> {
             : error != null
             ? RetryState(message: error!, onRetry: loadTables)
             : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
                 children: [
-                  // Thẻ Thống kê nhanh (Đã tinh chỉnh gọn gàng, hợp lý, không quá bự)
+                  _buildActionPromptBanner(isDark),
+
+                  // 1. Thẻ Thống kê nhanh gọn gàng (Realtime Auto)
                   Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: isDark ? darkSurface : Colors.white,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                        width: 1,
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -470,378 +583,216 @@ class _TablesPageState extends State<TablesPage> {
                     ),
                     child: Row(
                       children: [
-                        Text(
-                          'Tổng số ${tables.length} bàn',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? gold : brand,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF064E3B).withValues(alpha: 0.4)
-                                : const Color(0xFFE8F5E9),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'REALTIME AUTO',
-                            style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Tổng số ${tables.length} bàn',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w900,
+                                color: isDark ? gold : brand,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF064E3B).withValues(alpha: 0.4)
+                                    : const Color(0xFFE8F5E9),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('● ', style: TextStyle(fontSize: 7.5, color: Color(0xFF2E7D32))),
+                                  Text(
+                                    'REALTIME AUTO',
+                                    style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                         const Spacer(),
                         Wrap(
-                          spacing: 12,
+                          spacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            _StatItem(label: 'Trống', count: empty, color: const Color(0xFF2E7D32)),
-                            _StatItem(label: 'Phục vụ', count: serving, color: const Color(0xFFE65100)),
-                            _StatItem(label: 'Đặt trước', count: reserved, color: const Color(0xFF1565C0)),
+                            _StatItem(label: 'Trống', count: empty, color: const Color(0xFF16A34A)),
+                            _StatItem(label: 'Phục vụ', count: serving, color: const Color(0xFFD97706)),
+                            _StatItem(label: 'Đặt trước', count: reserved, color: const Color(0xFF2563EB)),
                             if (cleaning > 0)
-                              _StatItem(label: 'Đang dọn', count: cleaning, color: const Color(0xFF6A1B9A)),
+                              _StatItem(label: 'Dọn', count: cleaning, color: const Color(0xFF9333EA)),
                           ],
                         ),
                       ],
                     ),
                   ),
 
-                  // Bộ lọc dạng Dropdown sổ xuống (Trạng thái bàn & Khu vực) chuẩn như yêu cầu
+                  // 2. Hàng tìm kiếm và Nút lọc gộp (Trạng thái + Khu vực)
                   Row(
                     children: [
-                      // Dropdown 1: Trạng thái bàn
                       Expanded(
                         child: Container(
-                          height: 40,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          height: 38,
                           decoration: BoxDecoration(
                             color: isDark ? darkSurface : Colors.white,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(9),
                             border: Border.all(
-                              color: filter != 'all'
-                                  ? (isDark ? gold : brand)
-                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                              width: filter != 'all' ? 1.5 : 1,
+                              color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
                             ),
                           ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: filter,
-                              isExpanded: true,
-                              icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-                              dropdownColor: isDark ? darkSurface : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              elevation: 4,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          child: TextField(
+                            controller: searchCtrl,
+                            onChanged: (val) => setState(() => searchQuery = val),
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Tìm theo tên bàn, số bàn, khu vực...',
+                              hintStyle: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? darkTextSecondary : const Color(0xFF94A3B8),
                               ),
-                              onChanged: (val) {
-                                if (val != null) setState(() => filter = val);
-                              },
-                              selectedItemBuilder: (BuildContext context) {
-                                return [
-                                  Text(
-                                    'Tất cả trạng thái (${tables.length})',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12.5,
-                                      color: isDark ? Colors.white : const Color(0xFF1E293B),
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    '🟢 Trống ($empty)',
-                                    style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF16A34A), fontSize: 12.5),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    '🟠 Phục vụ ($serving)',
-                                    style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFD97706), fontSize: 12.5),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    '🔵 Đặt trước ($reserved)',
-                                    style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF2563EB), fontSize: 12.5),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  if (cleaning > 0)
-                                    Text(
-                                      '🟣 Đang dọn ($cleaning)',
-                                      style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF7C3AED), fontSize: 12.5),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                ];
-                              },
-                              items: [
-                                DropdownMenuItem(
-                                  value: 'all',
-                                  child: Container(
-                                    decoration: filter == 'all'
-                                        ? BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(4))
-                                        : null,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          'Tất cả trạng thái',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            color: filter == 'all' ? Colors.white : const Color(0xFF1E293B),
-                                          ),
-                                        ),
-                                        Text(
-                                          '${tables.length}',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            color: filter == 'all' ? Colors.white70 : const Color(0xFF64748B),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'empty',
-                                  child: Container(
-                                    decoration: filter == 'empty'
-                                        ? BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(4))
-                                        : null,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          'Bàn trống',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: filter == 'empty' ? Colors.white : const Color(0xFF16A34A),
-                                          ),
-                                        ),
-                                        Text(
-                                          '$empty',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            color: filter == 'empty' ? Colors.white70 : const Color(0xFF16A34A),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'serving',
-                                  child: Container(
-                                    decoration: filter == 'serving'
-                                        ? BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(4))
-                                        : null,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          'Đang phục vụ',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: filter == 'serving' ? Colors.white : const Color(0xFFD97706),
-                                          ),
-                                        ),
-                                        Text(
-                                          '$serving',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            color: filter == 'serving' ? Colors.white70 : const Color(0xFFD97706),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'reserved',
-                                  child: Container(
-                                    decoration: filter == 'reserved'
-                                        ? BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(4))
-                                        : null,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          'Đã đặt trước',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: filter == 'reserved' ? Colors.white : const Color(0xFF2563EB),
-                                          ),
-                                        ),
-                                        Text(
-                                          '$reserved',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            color: filter == 'reserved' ? Colors.white70 : const Color(0xFF2563EB),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                if (cleaning > 0)
-                                  DropdownMenuItem(
-                                    value: 'cleaning',
-                                    child: Container(
-                                      decoration: filter == 'cleaning'
-                                          ? BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(4))
-                                          : null,
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Đang dọn dẹp',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              color: filter == 'cleaning' ? Colors.white : const Color(0xFF7C3AED),
-                                            ),
-                                          ),
-                                          Text(
-                                            '$cleaning',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              color: filter == 'cleaning' ? Colors.white70 : const Color(0xFF7C3AED),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                size: 18,
+                                color: isDark ? darkTextSecondary : const Color(0xFF64748B),
+                              ),
+                              prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              suffixIcon: searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      padding: EdgeInsets.zero,
+                                      icon: const Icon(Icons.cancel_rounded, size: 16),
+                                      onPressed: () {
+                                        searchCtrl.clear();
+                                        setState(() => searchQuery = '');
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
 
-                      // Dropdown 2: Khu vực
-                      Expanded(
-                        child: Container(
-                          height: 40,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: isDark ? darkSurface : Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: areaFilter != null
-                                  ? (isDark ? gold : brand)
-                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                              width: areaFilter != null ? 1.5 : 1,
-                            ),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String?>(
-                              value: areaFilter,
-                              isExpanded: true,
-                              icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-                              dropdownColor: isDark ? darkSurface : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              elevation: 4,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white : const Color(0xFF1E293B),
-                              ),
-                              onChanged: (val) {
-                                setState(() => areaFilter = val);
-                              },
-                              selectedItemBuilder: (BuildContext context) {
-                                return [
-                                  Text(
-                                    'Tất cả khu vực',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12.5,
-                                      color: isDark ? Colors.white : const Color(0xFF1E293B),
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  ...areas.map((area) => Text(
-                                    '📍 $area',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12.5,
-                                      color: isDark ? Colors.white : const Color(0xFF1E293B),
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  )),
-                                ];
-                              },
-                              items: [
-                                DropdownMenuItem<String?>(
-                                  value: null,
-                                  child: Container(
-                                    decoration: areaFilter == null
-                                        ? BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(4))
-                                        : null,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          'Tất cả khu vực',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            color: areaFilter == null ? Colors.white : const Color(0xFF1E293B),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                ...areas.map((area) => DropdownMenuItem<String?>(
-                                  value: area,
-                                  child: Container(
-                                    decoration: areaFilter == area
-                                        ? BoxDecoration(color: const Color(0xFF475569), borderRadius: BorderRadius.circular(4))
-                                        : null,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          area,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: areaFilter == area ? Colors.white : const Color(0xFF1E293B),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )),
-                              ],
-                            ),
-                          ),
-                        ),
+                      // Nút Lọc gộp duy nhất (Trạng thái + Khu vực)
+                      _buildFilterTriggerButton(
+                        isDark: isDark,
+                        areas: areas,
+                        emptyCount: empty,
+                        servingCount: serving,
+                        reservedCount: reserved,
+                        cleaningCount: cleaning,
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 14),
+                  // Chỉ hiện thanh trạng thái lọc khi người dùng đang áp dụng bộ lọc
+                  if (filter != 'all' || areaFilter != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          'Đang lọc: ',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? darkTextSecondary : const Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (filter != 'all') ...[
+                          _buildActiveBadge(
+                            label: _statusFilterLabel(filter),
+                            onClear: () => setState(() => filter = 'all'),
+                            isDark: isDark,
+                          ),
+                          const SizedBox(width: 5),
+                        ],
+                        if (areaFilter != null) ...[
+                          _buildActiveBadge(
+                            label: '📍 $areaFilter',
+                            onClear: () => setState(() => areaFilter = null),
+                            isDark: isDark,
+                          ),
+                        ],
+                        const Spacer(),
+                        InkWell(
+                          onTap: () => setState(() {
+                            filter = 'all';
+                            areaFilter = null;
+                          }),
+                          child: const Text(
+                            'Xóa lọc',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
 
-                  // Lưới bàn Responsive (Điện thoại: 2 cột, Tablet: 3-4 cột)
+                  const SizedBox(height: 10),
+
+                  // Lưới bàn Responsive (Điện thoại: 2 cột gọn chuẩn POS, Tablet: 3-4 cột)
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final columns = constraints.maxWidth >= 1000
                           ? 4
                           : constraints.maxWidth >= 700
                           ? 3
-                          : constraints.maxWidth >= 500
-                          ? 2
                           : 2;
 
+                      final aspectRatio = constraints.maxWidth >= 700 ? 1.08 : 0.96;
+
                       if (visible.isEmpty) {
-                        return const EmptyState(message: 'Không có bàn nào trong bộ lọc này.');
+                        return Container(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          alignment: Alignment.center,
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.table_restaurant_outlined,
+                                size: 44,
+                                color: isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Không tìm thấy bàn nào phù hợp.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? darkTextSecondary : const Color(0xFF64748B),
+                                ),
+                              ),
+                              if (searchQuery.isNotEmpty || filter != 'all' || areaFilter != null) ...[
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    searchCtrl.clear();
+                                    setState(() {
+                                      searchQuery = '';
+                                      filter = 'all';
+                                      areaFilter = null;
+                                    });
+                                  },
+                                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                                  label: const Text('Xóa tất cả bộ lọc', style: TextStyle(fontSize: 12)),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
                       }
 
                       return GridView.builder(
@@ -850,9 +801,9 @@ class _TablesPageState extends State<TablesPage> {
                         itemCount: visible.length,
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: columns,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 0.68,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: aspectRatio,
                         ),
                         itemBuilder: (_, itemIndex) => TableCard(
                           table: visible[itemIndex],
@@ -869,6 +820,476 @@ class _TablesPageState extends State<TablesPage> {
               ),
       ),
     );
+  }
+
+  Widget _buildFilterTriggerButton({
+    required bool isDark,
+    required List<String> areas,
+    required int emptyCount,
+    required int servingCount,
+    required int reservedCount,
+    required int cleaningCount,
+  }) {
+    final isFiltered = filter != 'all' || areaFilter != null;
+    final activeCount = (filter != 'all' ? 1 : 0) + (areaFilter != null ? 1 : 0);
+
+    return InkWell(
+      onTap: () => _openFilterSheet(
+        isDark: isDark,
+        areas: areas,
+        emptyCount: emptyCount,
+        servingCount: servingCount,
+        reservedCount: reservedCount,
+        cleaningCount: cleaningCount,
+      ),
+      borderRadius: BorderRadius.circular(9),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: isFiltered
+              ? (isDark ? gold.withValues(alpha: 0.2) : const Color(0xFFFEF3C7))
+              : (isDark ? darkSurface : Colors.white),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: isFiltered
+                ? (isDark ? gold : const Color(0xFFD97706))
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+            width: isFiltered ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.tune_rounded,
+              size: 16,
+              color: isFiltered
+                  ? (isDark ? gold : const Color(0xFFB45309))
+                  : (isDark ? darkTextSecondary : const Color(0xFF64748B)),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              isFiltered ? 'Lọc ($activeCount)' : 'Bộ lọc',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isFiltered ? FontWeight.w800 : FontWeight.w600,
+                color: isFiltered
+                    ? (isDark ? gold : const Color(0xFFB45309))
+                    : (isDark ? darkTextPrimary : const Color(0xFF334155)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openFilterSheet({
+    required bool isDark,
+    required List<String> areas,
+    required int emptyCount,
+    required int servingCount,
+    required int reservedCount,
+    required int cleaningCount,
+  }) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final isFiltered = filter != 'all' || areaFilter != null;
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.tune_rounded, size: 20, color: Color(0xFF2563EB)),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Bộ lọc trạng thái & Khu vực',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? darkTextPrimary : const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (isFiltered)
+                          TextButton(
+                            onPressed: () {
+                              setSheetState(() {
+                                filter = 'all';
+                                areaFilter = null;
+                              });
+                              setState(() {});
+                            },
+                            child: const Text(
+                              'Đặt lại',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFDC2626),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Section 1: Trạng thái bàn
+                    Text(
+                      'TRẠNG THÁI BÀN',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? darkTextSecondary : const Color(0xFF64748B),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildSheetChip(
+                          label: 'Tất cả (${tables.length})',
+                          isSelected: filter == 'all',
+                          activeColor: isDark ? gold : brand,
+                          isDark: isDark,
+                          onTap: () {
+                            setSheetState(() => filter = 'all');
+                            setState(() {});
+                          },
+                        ),
+                        _buildSheetChip(
+                          label: '🟢 Trống ($emptyCount)',
+                          isSelected: filter == 'empty',
+                          activeColor: const Color(0xFF16A34A),
+                          isDark: isDark,
+                          onTap: () {
+                            setSheetState(() => filter = 'empty');
+                            setState(() {});
+                          },
+                        ),
+                        _buildSheetChip(
+                          label: '🟠 Phục vụ ($servingCount)',
+                          isSelected: filter == 'serving',
+                          activeColor: const Color(0xFFD97706),
+                          isDark: isDark,
+                          onTap: () {
+                            setSheetState(() => filter = 'serving');
+                            setState(() {});
+                          },
+                        ),
+                        _buildSheetChip(
+                          label: '🔵 Đặt trước ($reservedCount)',
+                          isSelected: filter == 'reserved',
+                          activeColor: const Color(0xFF2563EB),
+                          isDark: isDark,
+                          onTap: () {
+                            setSheetState(() => filter = 'reserved');
+                            setState(() {});
+                          },
+                        ),
+                        if (cleaningCount > 0)
+                          _buildSheetChip(
+                            label: '🟣 Đang dọn ($cleaningCount)',
+                            isSelected: filter == 'cleaning',
+                            activeColor: const Color(0xFF9333EA),
+                            isDark: isDark,
+                            onTap: () {
+                              setSheetState(() => filter = 'cleaning');
+                              setState(() {});
+                            },
+                          ),
+                      ],
+                    ),
+
+                    if (areas.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      // Section 2: Khu vực bàn
+                      Text(
+                        'KHU VỰC BÀN',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? darkTextSecondary : const Color(0xFF64748B),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildSheetChip(
+                            label: 'Tất cả khu vực',
+                            isSelected: areaFilter == null,
+                            activeColor: isDark ? gold : brand,
+                            isDark: isDark,
+                            onTap: () {
+                              setSheetState(() => areaFilter = null);
+                              setState(() {});
+                            },
+                          ),
+                          ...areas.map((area) {
+                            final count = tables.where((t) => text(t['areaName']) == area).length;
+                            return _buildSheetChip(
+                              label: '📍 $area ($count)',
+                              isSelected: areaFilter == area,
+                              activeColor: const Color(0xFF2563EB),
+                              isDark: isDark,
+                              onTap: () {
+                                setSheetState(() => areaFilter = area);
+                                setState(() {});
+                              },
+                            );
+                          }),
+                        ],
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+
+                    // Nút Áp Dụng
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: brand,
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text(
+                        'Áp Dụng Bộ Lọc',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildActiveBadge({
+    required String label,
+    required VoidCallback onClear,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 2, 4, 2),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: isDark ? darkTextPrimary : const Color(0xFF334155),
+            ),
+          ),
+          const SizedBox(width: 2),
+          InkWell(
+            onTap: onClear,
+            child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFF94A3B8)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSheetChip({
+    required String label,
+    required bool isSelected,
+    required Color activeColor,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? activeColor
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? darkTextPrimary : const Color(0xFF334155)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionPromptBanner(bool isDark) {
+    if (actionPrompt == null) return const SizedBox.shrink();
+
+    final Color bg;
+    final Color border;
+    final Color textColor;
+    final IconData icon;
+    final String title;
+    final String subtitle;
+
+    switch (actionPrompt) {
+      case 'open_table':
+        bg = isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7);
+        border = const Color(0xFF86EFAC);
+        textColor = const Color(0xFF15803D);
+        icon = Icons.add_circle_outline_rounded;
+        title = 'Chế độ tạo order mới';
+        subtitle = 'Chỉ hiển thị bàn trống. Chạm vào bàn để mở order ngay.';
+        break;
+      case 'add_order':
+        bg = isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7);
+        border = const Color(0xFFFDE68A);
+        textColor = const Color(0xFFB45309);
+        icon = Icons.restaurant_menu_rounded;
+        title = 'Chế độ gọi món / thêm món';
+        subtitle = 'Chỉ hiển thị bàn đang phục vụ. Chạm vào bàn để gọi thêm món.';
+        break;
+      case 'transfer_merge':
+        bg = isDark ? const Color(0xFF581C87) : const Color(0xFFF3E8FF);
+        border = const Color(0xFFD8B4FE);
+        textColor = const Color(0xFF7E22CE);
+        icon = Icons.swap_horiz_rounded;
+        title = 'Chế độ chuyển / gộp bàn';
+        subtitle = 'Chạm vào bàn đang ăn để thực hiện đổi bàn hoặc ghép bàn.';
+        break;
+      case 'payment':
+        bg = isDark ? const Color(0xFF14532D) : const Color(0xFFECFDF5);
+        border = const Color(0xFFA7F3D0);
+        textColor = const Color(0xFF047857);
+        icon = Icons.payments_rounded;
+        title = 'Chế độ thanh toán POS';
+        subtitle = 'Chạm vào bàn đang ăn để vào màn hình thanh toán hóa đơn.';
+        break;
+      case 'kitchen_ready':
+        bg = isDark ? const Color(0xFF1E3A8A) : const Color(0xFFEFF6FF);
+        border = const Color(0xFFBFDBFE);
+        textColor = const Color(0xFF1D4ED8);
+        icon = Icons.room_service_rounded;
+        title = 'Món bếp đã nấu xong';
+        subtitle = 'Chỉ hiển thị các bàn có món sẵn sàng để bưng ra phục vụ.';
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: textColor, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: textColor,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            onPressed: clearFilterAndPrompt,
+            child: Text(
+              'Xem tất cả ✕',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: textColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _statusFilterLabel(String id) {
+    switch (id) {
+      case 'ready':
+        return '🔔 Bếp xong';
+      case 'empty':
+        return '🟢 Trống';
+      case 'serving':
+        return '🟠 Phục vụ';
+      case 'reserved':
+        return '🔵 Đặt trước';
+      case 'cleaning':
+        return '🟣 Đang dọn';
+      default:
+        return id;
+    }
   }
 }
 

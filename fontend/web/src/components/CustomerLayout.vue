@@ -36,7 +36,7 @@
           <span class="dola-brand-icon">🪷</span>
           <div>
             <div class="dola-font-title text-gold lh-1" style="font-size: 1.85rem; font-weight: 700;">Hương Sen</div>
-            <small class="text-white-50" style="font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;">Dola Restaurant &amp; Cuisine</small>
+            <small class="text-secondary" style="font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;">Dola Restaurant &amp; Cuisine</small>
           </div>
         </router-link>
 
@@ -177,7 +177,8 @@
     </main>
 
     <!-- ===== FOOTER ===== -->
-    <footer class="dola-footer py-5 mt-auto border-top border-dola-gold">
+    <!-- ===== FOOTER ===== -->
+    <footer class="dola-footer py-5 mt-auto border-top" style="border-color: var(--dola-hairline) !important; background-color: var(--dola-surface-alt);">
       <div class="container">
         <div class="row g-4">
           <!-- Brand Column -->
@@ -185,41 +186,49 @@
             <div class="d-flex align-items-center gap-2 mb-3">
               <span style="font-size: 2.2rem;">🪷</span>
               <div>
-                <div class="dola-font-title text-gold" style="font-size: 1.9rem; font-weight: 700; line-height: 1;">Hương Sen</div>
-                <small class="text-white-50" style="font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;">Ẩm Thực Đương Đại &amp; Tiệc Sang</small>
+                <div class="dola-font-title" style="color: var(--dola-wine); font-size: 2.1rem; font-weight: 700; line-height: 1;">Hương Sen</div>
+                <small style="font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: #8C7F75; font-weight: 700;">Ẩm Thực Đương Đại &amp; Tiệc Sang</small>
               </div>
             </div>
-            <p class="text-body-dola small mb-3">
+            <p class="small mb-3" style="color: #574A40; line-height: 1.6;">
               Dola Restaurant – Hương Sen kế thừa tinh hoa ẩm thực truyền thống Việt Nam, 
               hòa quyện cùng phong cách phục vụ đẳng cấp trong không gian xanh thanh tao, ấm cúng.
             </p>
             <div class="d-flex gap-2">
-              <a href="#" class="dola-social-btn" title="Facebook">📘</a>
-              <a href="#" class="dola-social-btn" title="Instagram">📸</a>
-              <a href="#" class="dola-social-btn" title="TikTok">🎵</a>
-              <a href="#" class="dola-social-btn" title="YouTube">📺</a>
+              <a href="#" class="dola-social-btn" title="Facebook" aria-label="Facebook">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              </a>
+              <a href="#" class="dola-social-btn" title="Instagram" aria-label="Instagram">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+              </a>
+              <a href="#" class="dola-social-btn" title="TikTok" aria-label="TikTok">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.99v9.12c-.03 2.11-.84 4.19-2.3 5.71-1.57 1.64-3.8 2.58-6.09 2.53-2.38-.05-4.66-1.1-6.19-2.92-1.55-1.84-2.27-4.32-1.95-6.72.33-2.4 1.69-4.54 3.73-5.74 1.9-1.12 4.24-1.35 6.32-.61v4.22c-1.04-.37-2.2-.33-3.21.12-.99.44-1.75 1.32-2.02 2.37-.28 1.05-.09 2.2.53 3.08.62.88 1.65 1.43 2.73 1.46 1.08.03 2.13-.48 2.77-1.35.43-.58.68-1.28.69-2v-16.89c.01-.1.01-.2.02-.3z"/></svg>
+              </a>
+              <a href="#" class="dola-social-btn" title="YouTube" aria-label="YouTube">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+              </a>
             </div>
           </div>
 
           <!-- Quick Links -->
           <div class="col-6 col-md-2">
-            <div class="fw-bold mb-3 text-gold text-uppercase small" style="letter-spacing: 0.05em;">Khám Phá</div>
+            <div class="fw-bold mb-3 text-uppercase small" style="letter-spacing: 0.08em; color: var(--dola-wine);">Khám Phá</div>
             <ul class="list-unstyled d-flex flex-column gap-2 small">
               <li v-for="link in navLinks" :key="link.path">
                 <router-link :to="link.path" class="dola-footer-link">{{ link.label }}</router-link>
               </li>
               <li>
-                <router-link to="/customer/reservation" class="dola-footer-link text-gold">📅 Đặt Bàn Ngay</router-link>
+                <router-link to="/customer/reservation" class="dola-footer-link fw-bold" style="color: var(--dola-wine);">📅 Đặt Bàn Ngay</router-link>
               </li>
             </ul>
           </div>
 
           <!-- Contact info -->
           <div class="col-6 col-md-3">
-            <div class="fw-bold mb-3 text-gold text-uppercase small" style="letter-spacing: 0.05em;">Liên Hệ</div>
-            <ul class="list-unstyled d-flex flex-column gap-2 small text-body-dola">
+            <div class="fw-bold mb-3 text-uppercase small" style="letter-spacing: 0.08em; color: var(--dola-wine);">Liên Hệ</div>
+            <ul class="list-unstyled d-flex flex-column gap-2 small" style="color: #574A40;">
               <li>📍 123 Đường Ẩm Thực, Quận 1, TP. HCM</li>
-              <li>📞 Hotline: <strong class="text-gold">1900 6868</strong></li>
+              <li>📞 Hotline: <strong style="color: var(--dola-wine); font-weight: 800;">1900 6868</strong></li>
               <li>✉️ info@huongsen-restaurant.vn</li>
               <li>🕒 10:00 – 22:30 (Thứ 2 – Chủ Nhật)</li>
             </ul>
@@ -227,34 +236,36 @@
 
           <!-- Service hours & perks -->
           <div class="col-12 col-md-3">
-            <div class="fw-bold mb-3 text-gold text-uppercase small" style="letter-spacing: 0.05em;">Giờ Phục Vụ</div>
-            <div class="d-flex flex-column gap-2 small text-body-dola mb-3">
+            <div class="fw-bold mb-3 text-uppercase small" style="letter-spacing: 0.08em; color: var(--dola-wine);">Giờ Phục Vụ</div>
+            <div class="d-flex flex-column gap-2 small mb-3" style="color: #574A40;">
               <div class="d-flex justify-content-between">
                 <span>Thứ 2 – Thứ 6:</span>
-                <strong class="text-white">10:00 – 22:30</strong>
+                <strong style="color: #1F1A17;">10:00 – 22:30</strong>
               </div>
               <div class="d-flex justify-content-between">
                 <span>Thứ 7 – Chủ Nhật:</span>
-                <strong class="text-white">09:00 – 23:00</strong>
+                <strong style="color: #1F1A17;">09:00 – 23:00</strong>
               </div>
               <div class="d-flex justify-content-between">
                 <span>Phòng VIP / Tiệc cưới:</span>
-                <strong class="text-gold">Theo yêu cầu</strong>
+                <strong style="color: var(--dola-wine); font-weight: 700;">Theo yêu cầu</strong>
               </div>
             </div>
-            <div class="p-3 rounded-2 text-center" style="background: rgba(214, 156, 82, 0.12); border: 1px solid var(--dola-hairline);">
-              <small class="text-gold fw-semibold">✨ Nhận đặt tiệc gia đình, sinh nhật, hội nghị cao cấp</small>
+            <div class="p-3 rounded-3 text-center" style="background: #FFFFFF; border: 1.5px solid var(--dola-hairline); box-shadow: 0 4px 14px rgba(44,30,20,0.04);">
+              <span class="d-block mb-1" style="font-size: 1.25rem;">✨</span>
+              <strong class="d-block mb-0.5" style="color: var(--dola-wine); font-size: 0.88rem;">Nhận Đặt Tiệc Sang Trọng</strong>
+              <small style="color: #6E6157; font-size: 0.74rem;">Gia đình, sinh nhật &amp; hội nghị cao cấp</small>
             </div>
           </div>
         </div>
 
         <hr class="mt-4 mb-3" style="border-color: var(--dola-hairline);">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 small text-body-dola">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 small" style="color: #6E6157;">
           <div>© 2026 Nhà Hàng Hương Sen (Dola Restaurant). Bản quyền thuộc về hệ thống quản lý nhà hàng thông minh.</div>
           <div class="d-flex gap-3">
             <router-link to="/customer/intro" class="dola-footer-link">Giới thiệu</router-link>
             <router-link :to="customerAccountPath" class="dola-footer-link">Tra cứu hóa đơn</router-link>
-            <router-link to="/login" class="dola-footer-link text-gold">Đăng nhập nội bộ</router-link>
+            <router-link to="/login" class="dola-footer-link fw-semibold" style="color: var(--dola-wine);">Đăng nhập nội bộ</router-link>
           </div>
         </div>
       </div>
@@ -266,6 +277,7 @@
 </template>
 
 <script setup>
+import { clearSession } from '@/auth/session';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import AiConsultantWidget from './AiConsultantWidget.vue';
@@ -331,16 +343,14 @@ const navLinks = computed(() => [
   { path: '/customer/intro',   icon: '🏠', label: 'Giới Thiệu' },
   { path: '/customer/menu',    icon: '📖', label: 'Thực Đơn' },
   { path: '/customer/area',    icon: '🪑', label: 'Không Gian' },
+  { path: '/customer/news',    icon: '📰', label: 'Tin Tức' },
   { path: '/customer/contact', icon: '📞', label: 'Liên Hệ' },
 ]);
 
 function handleLogout() {
   closeUserMenu();
   if (confirm('Quý khách có chắc chắn muốn đăng xuất khỏi tài khoản?')) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
-    localStorage.removeItem('fullName');
-    sessionStorage.removeItem('ai_conversation_id');
+    clearSession();
     checkAuth();
     router.push('/customer/intro');
   }
@@ -535,15 +545,21 @@ function handleLogout() {
   transform: translateY(-4px) scale(0.98);
 }
 
+.dola-topbar {
+  background-color: #F4ECE1;
+  border-bottom: 1px solid rgba(184, 125, 50, 0.2);
+}
+
 .dola-navbar {
-  background-color: var(--dola-canvas);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--dola-hairline);
+  background-color: #FAF7F2;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(184, 125, 50, 0.2);
 }
 
 .dola-brand-icon {
   font-size: 2rem;
-  filter: drop-shadow(0 2px 4px rgba(214, 156, 82, 0.4));
+  filter: drop-shadow(0 2px 4px rgba(184, 125, 50, 0.3));
 }
 
 .dola-nav-pill {
@@ -552,20 +568,20 @@ function handleLogout() {
   gap: 6px;
   padding: 8px 16px;
   border-radius: 9999px;
-  color: var(--dola-body) !important;
-  font-weight: 500;
+  color: #3D332B !important;
+  font-weight: 600;
   font-size: 0.95rem;
   transition: all 0.2s ease;
 }
 .dola-nav-pill:hover {
-  background: rgba(214, 156, 82, 0.15);
-  color: #FFFFFF !important;
+  background: rgba(184, 125, 50, 0.12);
+  color: #7A1C28 !important;
 }
 .dola-nav-pill-active {
-  background: var(--dola-primary) !important;
-  color: #1b1814 !important;
+  background: #7A1C28 !important;
+  color: #FFFFFF !important;
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(214, 156, 82, 0.3);
+  box-shadow: 0 4px 12px rgba(122, 28, 40, 0.3);
 }
 
 .dola-main-content {
@@ -576,12 +592,14 @@ function handleLogout() {
   background-color: var(--dola-surface-alt);
 }
 .dola-footer-link {
-  color: var(--dola-body);
+  color: #574A40;
   text-decoration: none;
-  transition: color 0.15s ease;
+  display: inline-block;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .dola-footer-link:hover {
-  color: var(--dola-primary);
+  color: var(--dola-wine);
+  transform: translateX(3px);
 }
 
 .dola-social-btn {
@@ -591,15 +609,19 @@ function handleLogout() {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--dola-hairline);
+  background: #FFFFFF;
+  border: 1.5px solid var(--dola-hairline);
+  color: #574A40;
   text-decoration: none;
-  font-size: 1.1rem;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(44, 30, 20, 0.04);
 }
 .dola-social-btn:hover {
-  background: var(--dola-primary);
-  transform: translateY(-2px);
+  background: var(--dola-wine);
+  color: #FFFFFF !important;
+  border-color: var(--dola-wine);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(122, 28, 40, 0.35);
 }
 
 .fade-page-enter-active,

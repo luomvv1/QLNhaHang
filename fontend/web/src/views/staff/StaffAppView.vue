@@ -231,8 +231,7 @@
               <template v-if="table.activeOrder">
                 <div class="tc-order-meta">
                   <span class="tc-order-id">#{{ table.activeOrder.orderId }}</span>
-                  <span v-if="!table.activeOrder.isPrimary" class="tc-badge tc-badge-sub">Ghép phụ</span>
-                  <span v-else-if="table.activeOrder.linkedTables?.length > 0" class="tc-badge tc-badge-link">+{{ table.activeOrder.linkedTables.length }} Ghép</span>
+                  <span v-if="table.activeOrder.linkedTables?.length > 0" class="tc-badge tc-badge-link">+{{ table.activeOrder.linkedTables.length }} Ghép</span>
                 </div>
                 <div class="tc-stats">
                   <span class="tc-stat-item">🍽️ {{ table.activeOrder.itemCount }} món</span>
@@ -414,7 +413,7 @@
                     {{ getCategoryEmoji(food.categoryName) }}
                   </div>
                   <div class="food-variant-tag">
-                    {{ food.variants?.length || 1 }} size
+                    {{ food.availabilityText || (food.canOrder === false ? 'Hết món' : `${food.variants?.length || 1} size`) }}
                   </div>
                 </div>
 
@@ -424,7 +423,7 @@
                   <p class="food-desc">{{ food.description || 'Thơm ngon, chế biến tươi nóng sốt.' }}</p>
                   <div class="food-card-footer">
                     <div class="food-price">{{ formatCurrency(getFoodMinPrice(food)) }}</div>
-                    <button class="food-add-btn" @click.stop="openSelectVariantModal(food)" title="Chọn món">
+                    <button class="food-add-btn" :disabled="food.canOrder === false" @click.stop="openSelectVariantModal(food)" :title="food.canOrder === false ? 'Hết món' : 'Chọn món'">
                       +
                     </button>
                   </div>
@@ -478,12 +477,12 @@
 
                     <div class="item-control-side">
                       <div class="item-line-total">
-                        {{ formatCurrency(item.LineTotal) }}
+                    {{ formatCurrency(item.ItemStatus === 'cancelled' ? 0 : item.LineTotal) }}
                       </div>
 
                       <div class="item-actions-row">
                         <span class="item-status-badge" :class="getItemStatusBadgeClass(item.ItemStatus)">
-                          {{ getItemStatusText(item.ItemStatus) }}
+                          {{ getItemStatusText(item.ItemStatus) }}{{ item.CancellationReason ? ` · ${item.CancellationReason}` : '' }}
                         </span>
 
                         <!-- Quantity Stepper for Pending Items -->
@@ -495,7 +494,8 @@
                         </div>
 
                         <!-- Readonly Quantity for Sent Items -->
-                        <div v-else class="item-fixed-qty">
+                        <div v-else class="item-fixed-qty" :title="item.CancellationReason">
+                          <button v-if="canCancelItem(item)" class="btn btn-sm btn-outline-danger" @click="cancelSentItem(item)">Hủy món</button>
                           SL: <strong>{{ item.Quantity }}</strong>
                         </div>
                       </div>
@@ -605,28 +605,132 @@
       </section>
 
       <!-- ============================================================== -->
-      <!-- TAB 4: ĐẶT BÀN HÔM NAY (VIEW NGANG TRÊN TABLET / MÁY TÍNH)      -->
+      <!-- TAB 4: ĐẶT BÀN HÔM NAY (UI/UX PRO VIEW)                         -->
       <!-- ============================================================== -->
       <section v-else-if="activeTab === 'reservations'" class="tab-pane-reservations">
+        <!-- Pane Header -->
         <div class="pane-header">
           <div>
-            <h3 class="pane-title">📅 DANH SÁCH KHÁCH ĐẶT BÀN HÔM NAY</h3>
-            <p class="pane-sub">Đón tiếp khách đặt chỗ, xem bàn phân bổ và mở Order bàn tức thì.</p>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0 fw-bold small">
+                📅 HÔM NAY
+              </span>
+              <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0 fw-bold small">
+                ● REALTIME
+              </span>
+            </div>
+            <h3 class="pane-title mb-0">DANH SÁCH KHÁCH ĐẶT BÀN HÔM NAY</h3>
+            <p class="pane-sub mb-0">Đón tiếp khách đặt chỗ, lọc nhanh, xếp bàn và mở Order tức thì.</p>
           </div>
-          <button class="btn-refresh-sm" @click="loadTodayReservations">
-            🔄 Tải lại
-          </button>
+          <div class="d-flex align-items-center gap-2">
+            <button
+              class="btn btn-sm btn-success fw-bold px-3 py-2 rounded-3 d-flex align-items-center gap-1 shadow-xs"
+              @click="openAppHotlineBooking"
+            >
+              <span>➕</span>
+              <span class="d-none d-sm-inline">Nhận Đặt Hotline</span>
+            </button>
+            <button class="btn-refresh-sm" @click="loadTodayReservations" title="Tải lại danh sách">
+              🔄 Tải lại
+            </button>
+          </div>
         </div>
 
-        <div v-if="isLoadingTodayReservations" class="app-loading-state">
+        <!-- Search & KPI Filter Bar -->
+        <div class="res-control-toolbar mb-3 p-3 bg-white rounded-3 shadow-xs border">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <!-- Search Input -->
+            <div class="res-search-wrap">
+              <span class="res-search-icon">🔍</span>
+              <input
+                v-model="resSearchQuery"
+                type="text"
+                class="form-control form-control-sm res-search-input"
+                placeholder="Tìm theo tên khách, SĐT, số bàn..."
+              />
+              <button
+                v-if="resSearchQuery"
+                type="button"
+                class="res-search-clear"
+                @click="resSearchQuery = ''"
+              >
+                ✕
+              </button>
+            </div>
+
+            <!-- KPI Filter Chips -->
+            <div class="res-kpi-chips">
+              <button
+                type="button"
+                class="kpi-chip-sm"
+                :class="{ active: resActiveFilter === 'all' }"
+                @click="resActiveFilter = 'all'"
+              >
+                <span>Tất cả</span>
+                <span class="count-tag">{{ resStats.total }}</span>
+              </button>
+              <button
+                type="button"
+                class="kpi-chip-sm chip-amber"
+                :class="{ active: resActiveFilter === 'pending' }"
+                @click="resActiveFilter = 'pending'"
+              >
+                <span>⏳ Chờ duyệt</span>
+                <span class="count-tag">{{ resStats.pending }}</span>
+              </button>
+              <button
+                type="button"
+                class="kpi-chip-sm chip-orange"
+                :class="{ active: resActiveFilter === 'unassigned' }"
+                @click="resActiveFilter = 'unassigned'"
+              >
+                <span>⚠️ Chưa xếp bàn</span>
+                <span class="count-tag">{{ resStats.unassigned }}</span>
+              </button>
+              <button
+                type="button"
+                class="kpi-chip-sm chip-blue"
+                :class="{ active: resActiveFilter === 'confirmed' }"
+                @click="resActiveFilter = 'confirmed'"
+              >
+                <span>✅ Đã xếp bàn</span>
+                <span class="count-tag">{{ resStats.confirmed }}</span>
+              </button>
+              <button
+                type="button"
+                class="kpi-chip-sm chip-green"
+                :class="{ active: resActiveFilter === 'checked_in' }"
+                @click="resActiveFilter = 'checked_in'"
+              >
+                <span>🍽️ Đang ăn</span>
+                <span class="count-tag">{{ resStats.checkedIn }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div v-if="isLoadingTodayReservations && todayReservations.length === 0" class="app-loading-state">
           <div class="app-spinner"></div>
           <p>Đang tải danh sách đặt bàn...</p>
         </div>
 
-        <div v-else-if="todayReservations.length === 0" class="app-empty-state">
+        <!-- Empty State -->
+        <div v-else-if="filteredTodayReservations.length === 0" class="app-empty-state">
           <div class="empty-icon">📅</div>
-          <div class="empty-title">Hôm nay chưa có lượt đặt bàn nào</div>
-          <p class="empty-desc">Các yêu cầu đặt bàn mới từ khách sẽ được cập nhật thời gian thực.</p>
+          <div class="empty-title">
+            {{ resSearchQuery ? 'Không tìm thấy kết quả phù hợp' : 'Không có lịch đặt bàn trong mục này' }}
+          </div>
+          <p class="empty-desc">
+            {{ resSearchQuery ? 'Thử tìm với tên khách hoặc số điện thoại khác.' : 'Khi có khách đặt qua hotline hoặc web, danh sách sẽ tự động hiển thị.' }}
+          </p>
+          <button
+            v-if="!resSearchQuery"
+            class="btn btn-sm btn-success fw-bold px-3 py-2 mt-2 rounded-3"
+            @click="openAppHotlineBooking"
+          >
+            ➕ Nhận Đặt Bàn Hotline Mới
+          </button>
         </div>
 
         <!-- 1. VIEW NGANG CHO MÀN HÌNH TABLET / LAPTOP / DESKTOP (>= 768px) -->
@@ -639,7 +743,7 @@
                     <th class="ps-3 py-3">Khách Hàng</th>
                     <th class="py-3">Giờ Hẹn</th>
                     <th class="py-3 text-center">Số Khách</th>
-                    <th class="py-3">Bàn Phân Bổ</th>
+                    <th class="py-3">Bàn Ăn</th>
                     <th class="py-3">Trạng Thái</th>
                     <th class="py-3">Ghi Chú</th>
                     <th class="pe-3 py-3 text-end">Thao Tác</th>
@@ -647,20 +751,29 @@
                 </thead>
                 <tbody>
                   <tr
-                    v-for="res in todayReservations"
+                    v-for="res in filteredTodayReservations"
                     :key="res.reservationId"
                     :class="{ 'table-success-subtle': res.reservationStatus === 'checked_in' }"
                   >
                     <!-- Khách hàng -->
                     <td class="ps-3 py-3">
                       <div class="fw-bold text-dark fs-6">{{ res.customerName }}</div>
-                      <small class="text-muted">📞 {{ res.customerPhone }}</small>
+                      <div class="d-flex align-items-center gap-2 mt-1">
+                        <small class="text-muted cursor-pointer" @click="copyResPhone(res.customerPhone)" title="Bấm để sao chép SĐT">
+                          📞 {{ res.customerPhone }} 📋
+                        </small>
+                      </div>
                     </td>
 
-                    <!-- Giờ hẹn -->
+                    <!-- Giờ hẹn & Countdown -->
                     <td class="py-3">
-                      <div class="fw-bold text-primary">
-                        ⏰ {{ formatReservationTime(res.reservationDate) }}
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold text-primary fs-6">
+                          ⏰ {{ formatTime(res.reservationDate) }}
+                        </span>
+                        <span class="countdown-pill-sm" :class="getResCountdownClass(res.reservationDate, res.reservationStatus)">
+                          {{ getResCountdownLabel(res.reservationDate, res.reservationStatus) }}
+                        </span>
                       </div>
                     </td>
 
@@ -673,12 +786,30 @@
 
                     <!-- Bàn gán -->
                     <td class="py-3">
-                      <span v-if="res.table" class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-6 fw-bold">
-                        🪑 {{ res.table.tableName }} ({{ res.table.areaName }})
-                      </span>
-                      <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
-                        Chưa gán bàn
-                      </span>
+                      <div v-if="res.table" class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-6 fw-bold">
+                          🪑 {{ res.table.tableName }} ({{ res.table.areaName }})
+                        </span>
+                        <button
+                          v-if="res.reservationStatus !== 'checked_in'"
+                          class="btn btn-sm btn-outline-secondary py-0 px-2 small"
+                          title="Đổi sang bàn khác"
+                          @click="openAssignResTableModal(res)"
+                        >
+                          Đổi
+                        </button>
+                      </div>
+                      <div v-else class="d-flex align-items-center gap-2">
+                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 fw-bold">
+                          ⚠️ Chưa có bàn
+                        </span>
+                        <button
+                          class="btn btn-sm btn-primary py-0 px-2 fw-bold small"
+                          @click="openAssignResTableModal(res)"
+                        >
+                          Xếp bàn
+                        </button>
+                      </div>
                     </td>
 
                     <!-- Trạng thái -->
@@ -689,24 +820,50 @@
                     </td>
 
                     <!-- Ghi chú -->
-                    <td class="py-3 text-muted small" style="max-width: 200px;">
+                    <td class="py-3 text-muted small" style="max-width: 220px;">
                       {{ res.note || '—' }}
                     </td>
 
-                    <!-- Thao tác đón khách -->
+                    <!-- Thao tác -->
                     <td class="pe-3 py-3 text-end">
+                      <!-- Confirmed with table -> Check-in -->
                       <button
                         v-if="res.reservationStatus === 'confirmed' && res.table"
-                        class="btn btn-primary btn-sm fw-bold px-3 shadow-xs"
+                        class="btn btn-success btn-sm fw-bold px-3 shadow-xs"
                         @click="checkInReservationAndOpenOrder(res)"
                       >
-                        🛎️ Đón Khách Vào Bàn
+                        🛎️ Đón Khách (Check-in)
                       </button>
+
+                      <!-- Confirmed without table -> Assign -->
+                      <button
+                        v-else-if="res.reservationStatus === 'confirmed' && !res.table"
+                        class="btn btn-primary btn-sm fw-bold px-3"
+                        @click="openAssignResTableModal(res)"
+                      >
+                        🪑 Xếp Bàn Ngay
+                      </button>
+
+                      <!-- Pending -> Confirm -->
+                      <div v-else-if="res.reservationStatus === 'pending'" class="d-inline-flex gap-1">
+                        <button
+                          class="btn btn-warning btn-sm fw-bold px-2"
+                          @click="handleConfirmReservation(res)"
+                        >
+                          ✓ Duyệt
+                        </button>
+                        <button
+                          class="btn btn-outline-danger btn-sm px-2"
+                          title="Hủy đặt bàn"
+                          @click="handleCancelReservation(res)"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <!-- Checked In -->
                       <span v-else-if="res.reservationStatus === 'checked_in'" class="text-success small fw-bold">
-                        ✓ Đã vào bàn
-                      </span>
-                      <span v-else class="text-muted small">
-                        Chờ xác nhận
+                        ✓ Đang dùng bữa
                       </span>
                     </td>
                   </tr>
@@ -717,52 +874,103 @@
         </div>
 
         <!-- 2. VIEW DỌC CHO ĐIỆN THOẠI (< 768px) -->
-        <div v-if="todayReservations.length > 0" class="reservations-cards-mobile d-md-none">
+        <div v-if="filteredTodayReservations.length > 0" class="reservations-cards-mobile d-md-none">
           <div
-            v-for="res in todayReservations"
+            v-for="res in filteredTodayReservations"
             :key="res.reservationId"
-            class="reservation-card"
-            :class="getReservationBorderClass(res.reservationStatus)"
+            class="app-res-card mb-3 p-3 bg-white rounded-3 shadow-xs border"
+            :class="`res-border-${res.reservationStatus}`"
           >
-            <div class="res-card-top">
-              <div class="res-guest-info">
-                <h4 class="res-guest-name">{{ res.customerName }}</h4>
-                <div class="res-guest-phone">📞 {{ res.customerPhone }}</div>
+            <!-- Card Top: Time, Countdown & Status -->
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-black fs-5 text-dark">
+                  {{ formatTime(res.reservationDate) }}
+                </span>
+                <span class="countdown-pill-sm" :class="getResCountdownClass(res.reservationDate, res.reservationStatus)">
+                  {{ getResCountdownLabel(res.reservationDate, res.reservationStatus) }}
+                </span>
               </div>
-              <span class="res-status-badge" :class="getReservationBadgeClass(res.reservationStatus)">
+              <span class="badge" :class="getReservationBadgeClass(res.reservationStatus)">
                 {{ getReservationStatusText(res.reservationStatus) }}
               </span>
             </div>
 
-            <div class="res-card-mid">
-              <div class="res-meta-item">
-                <span class="meta-label">⏰ Giờ hẹn:</span>
-                <span class="meta-val fw-bold">{{ formatReservationTime(res.reservationDate) }}</span>
-              </div>
-              <div class="res-meta-item">
-                <span class="meta-label">👥 Số khách:</span>
-                <span class="meta-val">{{ res.guestCount }} người</span>
-              </div>
-              <div class="res-meta-item">
-                <span class="meta-label">🪑 Bàn:</span>
-                <span class="meta-val text-primary fw-bold">{{ res.table?.tableName || 'Chưa gán' }}</span>
-              </div>
+            <!-- Customer & Guest Count -->
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="fw-bold fs-6 text-dark">{{ res.customerName }}</div>
+              <span class="badge bg-light text-dark border">
+                👥 <strong>{{ res.guestCount }}</strong> khách
+              </span>
             </div>
 
-            <div v-if="res.note" class="res-note">
-              📝 {{ res.note }}
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span
+                class="badge bg-light text-secondary border cursor-pointer"
+                @click="copyResPhone(res.customerPhone)"
+                title="Bấm để sao chép"
+              >
+                📞 {{ res.customerPhone }} 📋
+              </span>
             </div>
 
-            <div class="res-card-actions">
+            <!-- Note -->
+            <div v-if="res.note" class="p-2 mb-2 rounded bg-light border-start border-3 border-secondary small text-muted fst-italic">
+              “{{ res.note }}”
+            </div>
+
+            <!-- Table Allocation -->
+            <div
+              class="p-2 mb-3 rounded d-flex align-items-center justify-content-between"
+              :class="res.table ? 'bg-success-subtle border border-success-subtle' : 'bg-warning-subtle border border-warning-subtle'"
+            >
+              <div v-if="res.table" class="small fw-bold text-success">
+                🪑 {{ res.table.tableName }} ({{ res.table.areaName }})
+              </div>
+              <div v-else class="small fw-bold text-danger">
+                ⚠️ Chưa xếp bàn cho khách
+              </div>
+              <button
+                v-if="res.reservationStatus !== 'checked_in'"
+                class="btn btn-xs btn-outline-dark py-1 px-2 small fw-bold"
+                @click="openAssignResTableModal(res)"
+              >
+                {{ res.table ? 'Đổi bàn' : 'Xếp bàn' }}
+              </button>
+            </div>
+
+            <!-- Action Button -->
+            <div>
               <button
                 v-if="res.reservationStatus === 'confirmed' && res.table"
-                class="btn-checkin-action"
+                class="btn btn-success w-100 fw-bold py-2 shadow-xs"
                 @click="checkInReservationAndOpenOrder(res)"
               >
-                🛎️ Đón Khách & Mở Order Ngay
+                🛎️ Đón Khách Vào Bàn (Check-in)
               </button>
-              <div v-else-if="res.reservationStatus === 'checked_in'" class="text-success small fw-bold">
-                ✓ Khách đã check-in vào bàn
+              <button
+                v-else-if="res.reservationStatus === 'confirmed' && !res.table"
+                class="btn btn-primary w-100 fw-bold py-2"
+                @click="openAssignResTableModal(res)"
+              >
+                🪑 Xếp Bàn Ngay
+              </button>
+              <div v-else-if="res.reservationStatus === 'pending'" class="d-flex gap-2">
+                <button
+                  class="btn btn-warning flex-grow-1 fw-bold py-2"
+                  @click="handleConfirmReservation(res)"
+                >
+                  ✓ Duyệt Nhận Chỗ
+                </button>
+                <button
+                  class="btn btn-outline-danger px-3"
+                  @click="handleCancelReservation(res)"
+                >
+                  ✕
+                </button>
+              </div>
+              <div v-else-if="res.reservationStatus === 'checked_in'" class="text-center text-success small fw-bold py-1">
+                ✓ Khách đang dùng bữa tại bàn
               </div>
             </div>
           </div>
@@ -813,6 +1021,17 @@
               <div>
                 <div class="item-title">Màn hình Bếp (Kitchen KDS)</div>
                 <div class="item-sub">Xem điều phối 3 quầy bếp: Nướng, Lẩu, Pha Chế</div>
+              </div>
+            </div>
+            <span class="item-arrow">➡️</span>
+          </router-link>
+
+          <router-link to="/customer/menu" class="menu-action-item">
+            <div class="item-left">
+              <span class="item-icon">📖</span>
+              <div>
+                <div class="item-title">Trang Thực Đơn Khách Hàng</div>
+                <div class="item-sub">Xem bảng giá, hình ảnh món và khuyến mãi đang hiển thị cho khách</div>
               </div>
             </div>
             <span class="item-arrow">➡️</span>
@@ -988,13 +1207,13 @@
 
                 <div class="item-control-side">
                   <div class="item-line-total">
-                    {{ formatCurrency(item.LineTotal) }}
+                    {{ formatCurrency(item.ItemStatus === 'cancelled' ? 0 : item.LineTotal) }}
                   </div>
 
                   <!-- Item status & Stepper -->
                   <div class="item-actions-row">
                     <span class="item-status-badge" :class="getItemStatusBadgeClass(item.ItemStatus)">
-                      {{ getItemStatusText(item.ItemStatus) }}
+                      {{ getItemStatusText(item.ItemStatus) }}{{ item.CancellationReason ? ` · ${item.CancellationReason}` : '' }}
                     </span>
 
                     <!-- Quantity Control for Pending Items -->
@@ -1006,7 +1225,8 @@
                     </div>
 
                     <!-- Readonly Quantity for Sent Items -->
-                    <div v-else class="item-fixed-qty">
+                        <div v-else class="item-fixed-qty" :title="item.CancellationReason">
+                          <button v-if="canCancelItem(item)" class="btn btn-sm btn-outline-danger" @click="cancelSentItem(item)">Hủy món</button>
                       SL: <strong>{{ item.Quantity }}</strong>
                     </div>
                   </div>
@@ -1080,16 +1300,17 @@
             <div class="sheet-section">
               <label class="sheet-section-label">CHỌN SIZE / PHẦN ĂN:</label>
               <div class="variant-options-grid">
-                <div
+                <button type="button"
                   v-for="v in selectedFood.variants"
                   :key="v.variantId"
                   class="variant-option-card"
                   :class="{ active: selectedVariantId === v.variantId }"
-                  @click="selectedVariantId = v.variantId"
+                  :disabled="v.canOrder === false" @click="selectedVariantId = v.variantId"
                 >
                   <div class="option-name">{{ v.variantName }}</div>
+                  <small class="option-availability">{{ v.availabilityText || (v.canOrder === false ? 'Bếp tạm hết món' : '') }}</small>
                   <div class="option-price">{{ formatCurrency(v.price) }}</div>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -1125,7 +1346,7 @@
           </div>
 
           <div class="variant-sheet-footer">
-            <button class="btn-confirm-add" @click="confirmAddItemToOrder">
+            <button class="btn-confirm-add" :disabled="!selectedVariantId || selectedFood?.canOrder === false || !selectedFood?.variants?.some(v => v.variantId === selectedVariantId && v.canOrder !== false)" @click="confirmAddItemToOrder">
               <span>+ THÊM VÀO ĐƠN</span>
               <span class="add-total-val">{{ formatCurrency(calcSelectedTotal()) }}</span>
             </button>
@@ -1171,10 +1392,170 @@
       @view-invoice="viewAndPrintInvoiceDetail"
     />
 
+    <!-- ============================================================== -->
+    <!-- MODAL XẾP BÀN CHO KHÁCH ĐẶT TRƯỚC (RESERVATION ASSIGN TABLE)    -->
+    <!-- ============================================================== -->
+    <div v-if="assigningRes" class="app-sub-modal-overlay" @click.self="assigningRes = null">
+      <div class="app-sub-modal-dialog">
+        <div class="sub-modal-header p-3 bg-light border-bottom d-flex align-items-center justify-content-between">
+          <div>
+            <span class="sub-eyebrow text-success fw-bold small d-block">ĐIỀU PHỐI BÀN ĂN</span>
+            <h6 class="mb-0 fw-bold">
+              Xếp bàn: {{ assigningRes.customerName }} ({{ assigningRes.guestCount }} khách)
+            </h6>
+          </div>
+          <button type="button" class="btn-close" @click="assigningRes = null"></button>
+        </div>
+
+        <div class="sub-modal-body p-3" style="max-height: 65vh; overflow-y: auto;">
+          <div v-if="isLoadingResTables" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-primary"></div>
+            <div class="mt-2 text-muted small">Đang tải danh sách bàn...</div>
+          </div>
+          <div v-else-if="resAvailableTables.length === 0" class="text-center py-4 text-muted">
+            Không tìm thấy bàn nào khả dụng.
+          </div>
+          <div v-else class="area-group-list">
+            <div v-for="(tablesInArea, area) in resTablesByArea" :key="area" class="mb-3">
+              <div class="small fw-bold text-secondary mb-2">📍 {{ area }}</div>
+              <div class="d-flex flex-wrap gap-2">
+                <button
+                  v-for="tbl in tablesInArea"
+                  :key="tbl.tableId"
+                  type="button"
+                  class="btn btn-sm text-start p-2 border rounded-3 position-relative"
+                  :class="{
+                    'btn-success text-white border-success': selectedResTableId === tbl.tableId,
+                    'btn-light text-dark': selectedResTableId !== tbl.tableId && tbl.tableStatus !== 'serving' && !tbl.isBookedOnDate,
+                    'btn-secondary opacity-50': tbl.tableStatus === 'serving' || (tbl.isBookedOnDate && tbl.tableId !== assigningRes.table?.tableId)
+                  }"
+                  :disabled="tbl.tableStatus === 'serving' || (tbl.isBookedOnDate && tbl.tableId !== assigningRes.table?.tableId)"
+                  @click="selectedResTableId = tbl.tableId"
+                  style="min-width: 105px;"
+                >
+                  <div class="fw-bold">{{ tbl.tableName }}</div>
+                  <div class="small opacity-75">👥 {{ tbl.capacity }} người</div>
+                  <small v-if="tbl.tableStatus === 'serving'" class="d-block text-warning fw-bold">Đang ăn</small>
+                  <small v-else-if="tbl.isBookedOnDate" class="d-block text-danger">Đã có khách</small>
+                  <small v-else-if="tbl.capacity >= assigningRes.guestCount" class="d-block text-success fw-bold">✓ Phù hợp</small>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-modal-footer p-3 bg-light border-top d-flex justify-content-end gap-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary fw-bold px-3" @click="assigningRes = null">
+            Hủy
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-success fw-bold px-4"
+            :disabled="!selectedResTableId || isSavingResAssign"
+            @click="submitAssignResTable"
+          >
+            <span v-if="isSavingResAssign" class="spinner-border spinner-border-sm me-1"></span>
+            Xác Nhận Xếp Bàn
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- MODAL TẠO LỊCH ĐẶT BÀN HOTLINE                                  -->
+    <!-- ============================================================== -->
+    <div v-if="showAppHotlineModal" class="app-sub-modal-overlay" @click.self="showAppHotlineModal = false">
+      <div class="app-sub-modal-dialog">
+        <div class="sub-modal-header p-3 bg-dark text-white d-flex align-items-center justify-content-between">
+          <div>
+            <span class="sub-eyebrow text-success small fw-bold d-block">HOTLINE BOOKING</span>
+            <h6 class="mb-0 fw-bold">Nhận Đặt Bàn Qua Điện Thoại</h6>
+          </div>
+          <button type="button" class="btn-close btn-close-white" @click="showAppHotlineModal = false"></button>
+        </div>
+
+        <form @submit.prevent="submitAppHotlineBooking" class="p-3">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Tên khách hàng <span class="text-danger">*</span></label>
+            <input
+              v-model="appHotlineForm.name"
+              type="text"
+              class="form-control form-control-sm"
+              placeholder="VD: Anh Minh, Chị Lan..."
+              required
+            />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Số điện thoại <span class="text-danger">*</span></label>
+            <input
+              v-model="appHotlineForm.phone"
+              type="tel"
+              class="form-control form-control-sm"
+              placeholder="VD: 0912345678"
+              required
+            />
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-bold">Số khách</label>
+              <input
+                v-model.number="appHotlineForm.guestCount"
+                type="number"
+                min="1"
+                max="50"
+                class="form-control form-control-sm"
+                required
+              />
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-bold">Giờ đến</label>
+              <input
+                v-model="appHotlineForm.time"
+                type="time"
+                class="form-control form-control-sm"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Ghi chú yêu cầu</label>
+            <textarea
+              v-model="appHotlineForm.note"
+              class="form-control form-control-sm"
+              rows="2"
+              placeholder="VD: Cần ghế trẻ em, ngồi ngoài trời..."
+            ></textarea>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+            <button type="button" class="btn btn-sm btn-outline-secondary fw-bold px-3" @click="showAppHotlineModal = false">
+              Hủy
+            </button>
+            <button
+              type="submit"
+              class="btn btn-sm btn-success fw-bold px-4"
+              :disabled="isSubmittingAppHotline"
+            >
+              <span v-if="isSubmittingAppHotline" class="spinner-border spinner-border-sm me-1"></span>
+              Tạo Lịch Đặt
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
   </div>
+  <OperationalReasonDialog :dialog="reasonDialog" />
 </template>
 
 <script setup>
+import OperationalReasonDialog from '@/components/OperationalReasonDialog.vue';
+import { useReasonDialog } from '@/composables/useReasonDialog';
+const { reasonDialog, askReason } = useReasonDialog();
+import { clearSession } from '@/auth/session';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
@@ -1186,8 +1567,8 @@ import StaffInvoiceModal from './components/StaffInvoiceModal.vue';
 import StaffRecentInvoicesModal from './components/StaffRecentInvoicesModal.vue';
 
 const router = useRouter();
-const apiBase = 'http://localhost:5079/api/staff/orders';
-const paymentApiBase = 'http://localhost:5079/api/staff/payment';
+const apiBase = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/staff/orders`;
+const paymentApiBase = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/staff/payment`;
 
 // User & Navigation Tab
 const userName = ref(localStorage.getItem('fullName') || 'Nhân viên');
@@ -1299,12 +1680,13 @@ const pendingItemsCount = computed(() => {
 });
 
 const totalItemQuantity = computed(() => {
-  return orderItems.value.reduce((sum, i) => sum + i.Quantity, 0);
+  return orderItems.value.filter(i => i.ItemStatus !== 'cancelled').reduce((sum, i) => sum + i.Quantity, 0);
 });
 
 const canCancelOrder = computed(() => {
   if (!currentOrder.value) return false;
-  return !orderItems.value.some(i => ['cooking', 'ready', 'served'].includes(i.ItemStatus));
+  return !orderItems.value.some(i => i.ItemStatus !== 'cancelled' &&
+    (i.CanCancel === false || ['cooking', 'ready', 'served'].includes(i.ItemStatus)));
 });
 
 const todayReservationsPendingCount = computed(() =>
@@ -1321,6 +1703,8 @@ const allReadyItemsCount = computed(() => {
 // LIFECYCLE & SIGNALR REALTIME
 // ==============================================================
 onMounted(async () => {
+  signalRService.on('FoodAvailabilityChanged', loadMenu);
+  signalRService.on('PortionAvailabilityChanged', loadMenu);
   await Promise.all([loadTables(), loadMenu(), loadTodayReservations()]);
   await loadAllReadyDishes();
 
@@ -1356,6 +1740,13 @@ onMounted(async () => {
   });
 
   signalRService.on('PaymentReceived', async (data) => {
+    // Nếu checkout modal đang mở cho đơn hàng này, modal sẽ tự phát âm ting ting và hiển thị Tick xanh cỡ lớn rồi emit @success
+    if (showCheckoutModal.value && currentOrder.value?.orderId === data.orderId) {
+      await loadTablesSilently();
+      await loadAllReadyDishes();
+      return;
+    }
+
     playCashChime();
     completedInvoice.value = data.invoice;
     showCheckoutModal.value = false;
@@ -1382,6 +1773,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  signalRService.off('FoodAvailabilityChanged', loadMenu);
+  signalRService.off('PortionAvailabilityChanged', loadMenu);
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   signalRService.off('StaffOrderUpdated');
   signalRService.off('KitchenUpdated');
@@ -1445,6 +1838,10 @@ async function loadMenu() {
     const res = await axios.get(`${apiBase}/menu`);
     menuCategories.value = res.data?.categories ?? [];
     menuFoods.value = res.data?.foods ?? [];
+    if (selectedFood.value) {
+      selectedFood.value = menuFoods.value.find(f => f.foodId === selectedFood.value.foodId) || null;
+      if (!selectedFood.value) showVariantModal.value = false;
+    }
   } catch (err) {
     console.error('Lỗi khi tải thực đơn:', err);
   }
@@ -1539,7 +1936,9 @@ async function loadCurrentTableOrder() {
       Quantity: i.quantity,
       LineTotal: i.lineTotal,
       Note: i.note,
-      ItemStatus: i.itemStatus
+      ItemStatus: i.itemStatus,
+      CancellationReason: i.cancellationReason,
+      CanCancel: i.canCancel
     }));
   } catch (err) {
     errorMsg.value = err.response?.data?.message ?? 'Lỗi khi tải chi tiết bàn.';
@@ -1552,6 +1951,11 @@ async function loadCurrentTableOrderSilently() {
     const res = await axios.get(`${apiBase}/table/${activeTable.value.tableId}`);
     if (res.data) {
       if (res.data.table) activeTable.value = res.data.table;
+      if (!res.data.order) {
+        currentOrder.value = null;
+        orderItems.value = [];
+        return;
+      }
       if (res.data.order) {
         currentOrder.value = res.data.order;
         const serverItems = (res.data.order.items ?? []).map(i => ({
@@ -1564,7 +1968,9 @@ async function loadCurrentTableOrderSilently() {
           Quantity: i.quantity,
           LineTotal: i.lineTotal,
           Note: i.note,
-          ItemStatus: i.itemStatus
+          ItemStatus: i.itemStatus,
+          CancellationReason: i.cancellationReason,
+          CanCancel: i.canCancel
         }));
         orderItems.value = serverItems;
       }
@@ -1576,8 +1982,9 @@ async function loadCurrentTableOrderSilently() {
 // ADD & MANAGE ORDER ITEMS
 // ==============================================================
 function openSelectVariantModal(food) {
+  if (food.canOrder === false) return;
   selectedFood.value = food;
-  selectedVariantId.value = food.variants?.[0]?.variantId ?? null;
+  selectedVariantId.value = food.variants?.find(v => v.canOrder !== false)?.variantId ?? null;
   selectedQty.value = 1;
   itemNote.value = '';
   showVariantModal.value = true;
@@ -1599,6 +2006,8 @@ function calcSelectedTotal() {
 }
 
 async function confirmAddItemToOrder() {
+  if (!selectedFood.value || selectedFood.value.canOrder === false ||
+      !selectedFood.value.variants?.some(v => v.variantId === selectedVariantId.value && v.canOrder !== false)) return;
   if (!currentOrder.value) {
     if (activeTable.value) {
       await createNewOrder(activeTable.value);
@@ -1660,11 +2069,26 @@ async function confirmOrderToKitchen() {
   }
 }
 
+function canCancelItem(item) {
+  return item.ItemStatus === 'confirmed' && item.CanCancel !== false;
+}
+
+async function cancelSentItem(item) {
+  const reason = await askReason('Hủy món đã gửi bếp', `${item.foodNameSnapshot} · ${item.variantSnapshot}`, 'Hủy món');
+  if (!reason || !currentOrder.value) return;
+  try {
+    const res = await axios.post(`${apiBase}/${currentOrder.value.orderId}/items/${item.orderItemId}/cancel`, { reason });
+    successMsg.value = res.data.message;
+    await loadCurrentTableOrder();
+  } catch (err) { errorMsg.value = err.response?.data?.message || 'Không thể hủy món.'; }
+}
+
 async function cancelCurrentOrder() {
   if (!currentOrder.value) return;
-  if (!confirm(`Bạn có chắc muốn HỦY đơn hàng #${currentOrder.value.orderId} của bàn ${activeTable.value.tableName} không?`)) return;
+  const reason = await askReason('Hủy toàn bộ đơn hàng', `Order #${currentOrder.value.orderId} · ${activeTable.value.tableName}`, 'Hủy đơn');
+  if (!reason) return;
   try {
-    const res = await axios.post(`${apiBase}/${currentOrder.value.orderId}/cancel`);
+    const res = await axios.post(`${apiBase}/${currentOrder.value.orderId}/cancel`, { reason });
     successMsg.value = res.data?.message ?? 'Đã hủy đơn hàng thành công.';
     await Promise.all([loadTables(), loadCurrentTableOrder()]);
     switchToTab('tables');
@@ -1780,13 +2204,115 @@ async function viewAndPrintInvoiceDetail(invoiceId) {
 }
 
 // ==============================================================
-// ĐẶT BÀN & CHECK-IN
+// ĐẶT BÀN & CHECK-IN (ENHANCED UI/UX PRO)
 // ==============================================================
+const resSearchQuery = ref('');
+const resActiveFilter = ref('all'); // 'all' | 'pending' | 'unassigned' | 'confirmed' | 'checked_in'
+const copiedResPhone = ref('');
+
+const assigningRes = ref(null);
+const resAvailableTables = ref([]);
+const isLoadingResTables = ref(false);
+const selectedResTableId = ref(null);
+const isSavingResAssign = ref(false);
+
+const showAppHotlineModal = ref(false);
+const isSubmittingAppHotline = ref(false);
+const appHotlineForm = ref({
+  name: '',
+  phone: '',
+  guestCount: 2,
+  time: '',
+  note: ''
+});
+
+const resStats = computed(() => {
+  const total = todayReservations.value.length;
+  const pending = todayReservations.value.filter(r => r.reservationStatus === 'pending').length;
+  const unassigned = todayReservations.value.filter(r => r.reservationStatus === 'confirmed' && !r.table).length;
+  const confirmed = todayReservations.value.filter(r => r.reservationStatus === 'confirmed' && r.table).length;
+  const checkedIn = todayReservations.value.filter(r => r.reservationStatus === 'checked_in').length;
+  return { total, pending, unassigned, confirmed, checkedIn };
+});
+
+const filteredTodayReservations = computed(() => {
+  let list = todayReservations.value;
+  if (resActiveFilter.value === 'pending') {
+    list = list.filter(r => r.reservationStatus === 'pending');
+  } else if (resActiveFilter.value === 'unassigned') {
+    list = list.filter(r => r.reservationStatus === 'confirmed' && !r.table);
+  } else if (resActiveFilter.value === 'confirmed') {
+    list = list.filter(r => r.reservationStatus === 'confirmed' && r.table);
+  } else if (resActiveFilter.value === 'checked_in') {
+    list = list.filter(r => r.reservationStatus === 'checked_in');
+  }
+
+  if (resSearchQuery.value.trim()) {
+    const q = resSearchQuery.value.trim().toLowerCase();
+    list = list.filter(r => {
+      const name = (r.customerName || '').toLowerCase();
+      const phone = (r.customerPhone || '').toLowerCase();
+      const table = (r.table?.tableName || '').toLowerCase();
+      const area = (r.table?.areaName || '').toLowerCase();
+      return name.includes(q) || phone.includes(q) || table.includes(q) || area.includes(q);
+    });
+  }
+
+  return [...list].sort((a, b) => new Date(a.reservationDate).getTime() - new Date(b.reservationDate).getTime());
+});
+
+const resTablesByArea = computed(() => {
+  const groups = {};
+  for (const t of resAvailableTables.value) {
+    const area = t.areaName || 'Sảnh chung';
+    if (!groups[area]) groups[area] = [];
+    groups[area].push(t);
+  }
+  return groups;
+});
+
+function getResCountdownLabel(dateStr, status) {
+  if (status === 'checked_in') return 'Đang ăn';
+  if (status === 'cancelled') return 'Đã hủy';
+  if (!dateStr) return '';
+  const now = new Date();
+  const target = new Date(dateStr);
+  const diffMinutes = Math.round((target - now) / 60000);
+  if (diffMinutes < -15) return `Quá ${Math.abs(diffMinutes)}p`;
+  if (diffMinutes < 0) return 'Đến giờ hẹn';
+  if (diffMinutes <= 30) return `Còn ${diffMinutes}p`;
+  const hours = Math.floor(diffMinutes / 60);
+  const mins = diffMinutes % 60;
+  return hours > 0 ? `Sau ${hours}h${mins > 0 ? mins + 'p' : ''}` : `Còn ${mins}p`;
+}
+
+function getResCountdownClass(dateStr, status) {
+  if (status === 'checked_in') return 'badge-checked-in';
+  if (status === 'cancelled') return 'badge-cancelled';
+  if (!dateStr) return '';
+  const now = new Date();
+  const target = new Date(dateStr);
+  const diffMinutes = Math.round((target - now) / 60000);
+  if (diffMinutes < -15) return 'badge-overdue';
+  if (diffMinutes <= 30) return 'badge-upcoming';
+  return 'badge-normal';
+}
+
+function copyResPhone(phone) {
+  if (!phone) return;
+  navigator.clipboard.writeText(phone);
+  copiedResPhone.value = phone;
+  successMsg.value = `Đã sao chép số điện thoại: ${phone}`;
+  setTimeout(() => {
+    if (copiedResPhone.value === phone) copiedResPhone.value = '';
+  }, 2000);
+}
+
 async function loadTodayReservations() {
   isLoadingTodayReservations.value = true;
   try {
     const today = new Date().toISOString().split('T')[0];
-    const res = await axios.get('http://localhost:5079/api/admin/reservations', {
+    const res = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations`, {
       params: { date: today }
     });
     if (res.data?.success) {
@@ -1823,7 +2349,7 @@ async function checkInReservationAndOpenOrder(res) {
   }
 
   try {
-    const resp = await axios.post(`http://localhost:5079/api/admin/reservations/${res.reservationId}/check-in`);
+    const resp = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations/${res.reservationId}/check-in`);
     if (resp.data?.success) {
       successMsg.value = resp.data.message;
       await loadTables();
@@ -1834,6 +2360,126 @@ async function checkInReservationAndOpenOrder(res) {
     }
   } catch (err) {
     errorMsg.value = err.response?.data?.message ?? 'Không thể check-in đón khách.';
+  }
+}
+
+async function handleConfirmReservation(res) {
+  try {
+    const resp = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations/${res.reservationId}/confirm`, {});
+    if (resp.data?.success) {
+      successMsg.value = `Đã duyệt tiếp nhận lịch đặt của ${res.customerName}!`;
+      await loadTodayReservations();
+      const updated = todayReservations.value.find(r => r.reservationId === res.reservationId);
+      if (updated && !updated.table) {
+        openAssignResTableModal(updated);
+      }
+    }
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'Lỗi khi duyệt phiếu đặt bàn.';
+  }
+}
+
+async function handleCancelReservation(res) {
+  if (!confirm(`Xác nhận hủy lịch đặt của khách "${res.customerName}"?`)) return;
+  try {
+    const resp = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations/${res.reservationId}/cancel`, {
+      reason: 'Nhân viên hủy tại quầy'
+    });
+    if (resp.data?.success) {
+      successMsg.value = `Đã hủy lịch đặt của ${res.customerName}.`;
+      await loadTodayReservations();
+    }
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'Lỗi khi hủy lịch.';
+  }
+}
+
+async function openAssignResTableModal(res) {
+  assigningRes.value = res;
+  selectedResTableId.value = res.table?.tableId || null;
+  isLoadingResTables.value = true;
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const resp = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations/tables`, {
+      params: { date: today, excludeReservationId: res.reservationId }
+    });
+    if (resp.data?.success) {
+      resAvailableTables.value = resp.data.data || [];
+    }
+  } catch (err) {
+    errorMsg.value = 'Không thể tải danh sách bàn ăn.';
+  } finally {
+    isLoadingResTables.value = false;
+  }
+}
+
+async function submitAssignResTable() {
+  if (!assigningRes.value || !selectedResTableId.value) return;
+  isSavingResAssign.value = true;
+  try {
+    const id = assigningRes.value.reservationId;
+    const resp = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations/${id}/assign-table`, {
+      tableId: selectedResTableId.value,
+      tableIds: [selectedResTableId.value]
+    });
+    if (resp.data?.success) {
+      successMsg.value = 'Đã xếp bàn thành công!';
+      assigningRes.value = null;
+      await Promise.all([loadTodayReservations(), loadTables()]);
+    }
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'Lỗi khi xếp bàn.';
+  } finally {
+    isSavingResAssign.value = false;
+  }
+}
+
+function openAppHotlineBooking() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() + 30);
+  const timeStr = now.toTimeString().slice(0, 5);
+  appHotlineForm.value = {
+    name: '',
+    phone: '',
+    guestCount: 2,
+    time: timeStr,
+    note: ''
+  };
+  showAppHotlineModal.value = true;
+}
+
+async function submitAppHotlineBooking() {
+  isSubmittingAppHotline.value = true;
+  try {
+    const [hh, mm] = appHotlineForm.value.time.split(':').map(Number);
+    const dateObj = new Date();
+    dateObj.setHours(hh, mm, 0, 0);
+
+    const payload = {
+      customerName: appHotlineForm.value.name.trim(),
+      customerPhone: appHotlineForm.value.phone.trim(),
+      guestCount: appHotlineForm.value.guestCount,
+      reservationDate: dateObj.toISOString(),
+      note: appHotlineForm.value.note.trim()
+    };
+
+    const resp = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations/create`, payload);
+    if (resp.data?.success) {
+      successMsg.value = 'Tạo lịch đặt bàn hotline thành công!';
+      showAppHotlineModal.value = false;
+      await loadTodayReservations();
+      const createdId = resp.data.data?.reservationId;
+      if (createdId) {
+        const found = todayReservations.value.find(r => r.reservationId === createdId);
+        if (found) {
+          openAssignResTableModal(found);
+        }
+      }
+    }
+  } catch (err) {
+    errorMsg.value = err.response?.data?.message || 'Lỗi tạo lịch hotline.';
+  } finally {
+    isSubmittingAppHotline.value = false;
   }
 }
 
@@ -1880,7 +2526,7 @@ function playNotificationChime() {
 
 function handleLogout() {
   if (confirm('Bạn có chắc muốn đăng xuất?')) {
-    localStorage.clear();
+    clearSession();
     router.push('/login');
   }
 }
@@ -2008,6 +2654,7 @@ function getReservationStatusText(status) {
 </script>
 
 <style scoped>
+.variant-option-card:disabled, .food-add-btn:disabled { opacity: .55; cursor: not-allowed; }
 /* ============================================================== */
 /* APP SHELL & MULTI-SCREEN RESPONSIVE LAYOUT                     */
 /* ============================================================== */
@@ -3970,4 +4617,164 @@ function getReservationStatusText(status) {
 
 .slide-down-enter-active, .slide-down-leave-active { transition: transform 0.25s ease, opacity 0.25s ease; }
 .slide-down-enter-from, .slide-down-leave-to { transform: translateY(-20px); opacity: 0; }
+
+/* ============================================================== */
+/* RESERVATIONS TAB STYLES                                        */
+/* ============================================================== */
+.res-control-toolbar {
+  border-color: #e2e8f0;
+}
+
+.res-search-wrap {
+  position: relative;
+  flex: 1 1 240px;
+  max-width: 380px;
+}
+
+.res-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.res-search-input {
+  padding-left: 30px;
+  padding-right: 28px;
+  border-radius: 8px;
+}
+
+.res-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.res-kpi-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kpi-chip-sm {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.74rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.kpi-chip-sm:hover {
+  background: #f1f5f9;
+}
+
+.kpi-chip-sm .count-tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.kpi-chip-sm.active {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+
+.kpi-chip-sm.active .count-tag {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.kpi-chip-sm.chip-amber.active { background: #d97706; border-color: #d97706; }
+.kpi-chip-sm.chip-orange.active { background: #ea580c; border-color: #ea580c; }
+.kpi-chip-sm.chip-blue.active { background: #2563eb; border-color: #2563eb; }
+.kpi-chip-sm.chip-green.active { background: #059669; border-color: #059669; }
+
+.countdown-pill-sm {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.countdown-pill-sm.badge-overdue {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  animation: pulse-glow 1.5s infinite;
+}
+
+.countdown-pill-sm.badge-upcoming {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.countdown-pill-sm.badge-normal {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.countdown-pill-sm.badge-checked-in {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.countdown-pill-sm.badge-cancelled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.app-res-card {
+  border-top-width: 4px !important;
+  transition: all 0.18s;
+}
+
+.res-border-pending { border-top-color: #f59e0b !important; }
+.res-border-confirmed { border-top-color: #3b82f6 !important; }
+.res-border-checked_in { border-top-color: #10b981 !important; }
+.res-border-cancelled { border-top-color: #94a3b8 !important; opacity: 0.65; }
+
+/* Sub-modal overlays */
+.app-sub-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+.app-sub-modal-dialog {
+  width: min(520px, 100%);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+}
 </style>

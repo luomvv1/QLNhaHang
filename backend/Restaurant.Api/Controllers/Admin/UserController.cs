@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
+
+using Restaurant.Api.Services;
 
 namespace Restaurant.Api.Controllers.Admin;
 
@@ -30,14 +34,17 @@ public class UpdateUserRequest
 // ==============================================================
 
 [Route("api/admin/user")]
+[Authorize(Roles = "admin")]
 [ApiController]
 public class UserController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
+    private readonly IAuditLogService _auditLogService;
 
-    public UserController(RestaurantDbContext dbContext)
+    public UserController(RestaurantDbContext dbContext, IAuditLogService auditLogService)
     {
         _dbContext = dbContext;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet("roles")]
@@ -105,7 +112,7 @@ public class UserController : ControllerBase
             return BadRequest(new { message = "Vui lòng nhập đầy đủ Họ Tên, Email và Mật khẩu!" });
 
         var role = await _dbContext.Roles.FindAsync(request.RoleId);
-        if (role == null)
+        if (role == null || !role.IsActive)
             return BadRequest(new { message = "Vai trò không hợp lệ!" });
 
         var isEmailExists = await _dbContext.Users.AnyAsync(u => u.Email == email);
@@ -126,6 +133,15 @@ public class UserController : ControllerBase
 
         _dbContext.Users.Add(newUser);
         await _dbContext.SaveChangesAsync();
+
+        var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var aid) ? (int?)aid : null;
+        await _auditLogService.LogAsync(
+            adminId,
+            "user_created",
+            "User",
+            newUser.UserId.ToString(),
+            null,
+            new { fullName = newUser.FullName, email = newUser.Email, role = role.RoleName, phone = newUser.Phone });
 
         return Ok(new 
         { 
@@ -148,12 +164,17 @@ public class UserController : ControllerBase
             return BadRequest(new { message = "Không tìm thấy người dùng này!" });
 
         var role = await _dbContext.Roles.FindAsync(request.RoleId);
-        if (role == null)
+        if (role == null || !role.IsActive)
             return BadRequest(new { message = "Vai trò không hợp lệ!" });
 
         var isEmailTaken = await _dbContext.Users.AnyAsync(u => u.Email == email && u.UserId != request.UserId);
         if (isEmailTaken)
             return BadRequest(new { message = "Email này đã được tài khoản khác sử dụng!" });
+        if (User.FindFirstValue(ClaimTypes.NameIdentifier) == user.UserId.ToString()
+            && (!request.IsActive || role.RoleCode != "admin"))
+            return BadRequest(new { message = "Không thể tự khóa hoặc hạ quyền tài khoản quản trị đang đăng nhập." });
+
+        var oldSnapshot = new { fullName = user.FullName, email = user.Email, roleId = user.RoleId, isActive = user.IsActive, phone = user.Phone };
 
         user.FullName = fullName;
         user.Email = email;
@@ -169,20 +190,36 @@ public class UserController : ControllerBase
 
         await _dbContext.SaveChangesAsync();
 
+        var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var aid) ? (int?)aid : null;
+        var newSnapshot = new { fullName = user.FullName, email = user.Email, roleId = user.RoleId, isActive = user.IsActive, phone = user.Phone };
+        await _auditLogService.LogAsync(adminId, "user_updated", "User", user.UserId.ToString(), oldSnapshot, newSnapshot);
+
         return Ok(new { message = $"Cập nhật thông tin tài khoản '{fullName}' thành công!" });
     }
 
     [HttpPatch("toggle-status")]
     public async Task<IActionResult> ToggleStatus([FromQuery] int userId)
     {
+        if (User.FindFirstValue(ClaimTypes.NameIdentifier) == userId.ToString())
+            return BadRequest(new { message = "Không thể tự khóa tài khoản đang đăng nhập." });
         var user = await _dbContext.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.UserId == userId);
         if (user == null)
             return BadRequest(new { message = "Không tìm thấy tài khoản này!" });
 
+        var oldStatus = user.IsActive;
         user.IsActive = !user.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync();
+
+        var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var aid) ? (int?)aid : null;
+        await _auditLogService.LogAsync(
+            adminId,
+            user.IsActive ? "user_unlocked" : "user_locked",
+            "User",
+            user.UserId.ToString(),
+            new { isActive = oldStatus, fullName = user.FullName, email = user.Email },
+            new { isActive = user.IsActive, fullName = user.FullName, email = user.Email });
 
         var statusText = user.IsActive ? "Mở khóa hoạt động" : "Tạm khóa";
         return Ok(new { message = $"Đã {statusText} tài khoản '{user.FullName}' thành công!" });

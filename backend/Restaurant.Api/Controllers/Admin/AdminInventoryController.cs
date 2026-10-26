@@ -313,11 +313,6 @@ public class AdminInventoryController : ControllerBase
             query = query.Where(i => i.SupplierId == supplierId.Value);
         }
 
-        if (isLowStock.HasValue && isLowStock.Value)
-        {
-            query = query.Where(i => i.CurrentQuantity <= i.MinimumQuantity);
-        }
-
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim().ToLower();
@@ -327,25 +322,27 @@ public class AdminInventoryController : ControllerBase
                                      i.BaseUnit.ToLower().Contains(s));
         }
 
-        var itemEntities = await query
-            .OrderBy(i => i.CurrentQuantity <= i.MinimumQuantity ? 0 : 1)
-            .ThenBy(i => i.ItemName)
-            .ToListAsync();
+        var itemEntities = await query.ToListAsync();
+        var today = DateTime.UtcNow.AddHours(7).Date;
 
         var items = itemEntities.Select(i =>
         {
             var remainingBatches = i.InventoryBatches.Where(b => b.QuantityRemaining > 0).ToList();
             var batchQuantity = remainingBatches.Sum(b => b.QuantityRemaining);
-            var batchValue = remainingBatches.Sum(b => b.QuantityRemaining * InventoryCostHelper.ToBaseUnitCost(b.UnitCost, i.ConversionRate));
-            var totalValue = remainingBatches.Count > 0
-                ? Math.Round(batchValue, 2)
-                : InventoryCostHelper.CalculateAmount(i.CurrentQuantity, i.CostPerUnit, i.ConversionRate);
-            var averagePurchaseCost = batchQuantity > 0
-                ? batchValue / (i.ConversionRate > 0 ? batchQuantity / i.ConversionRate : batchQuantity)
-                : i.CostPerUnit;
-            var averageBaseCost = batchQuantity > 0
-                ? batchValue / batchQuantity
-                : InventoryCostHelper.ToBaseUnitCost(i.CostPerUnit, i.ConversionRate);
+            var usableBatches = remainingBatches.Where(b => b.Status == "active" && b.ExpiryDate.Date >= today).ToList();
+            var availableQuantity = usableBatches.Sum(b => b.QuantityRemaining);
+            var unavailableQuantity = batchQuantity - availableQuantity;
+            var availableValue = usableBatches.Sum(b => InventoryCostHelper.CalculateAmount(b.QuantityRemaining, b.UnitCost, i.ConversionRate));
+            var hasUntrackedStock = remainingBatches.Count == 0 && i.CurrentQuantity > 0;
+            if (hasUntrackedStock)
+            {
+                availableQuantity = i.CurrentQuantity;
+                availableValue = InventoryCostHelper.CalculateAmount(i.CurrentQuantity, i.CostPerUnit, i.ConversionRate);
+            }
+            var averagePurchaseCost = availableQuantity > 0
+                ? availableValue * (i.ConversionRate > 0 ? i.ConversionRate : 1) / availableQuantity
+                : 0;
+            var averageBaseCost = availableQuantity > 0 ? availableValue / availableQuantity : 0;
 
             return new
             {
@@ -359,19 +356,20 @@ public class AdminInventoryController : ControllerBase
                 i.ConversionRate,
                 i.PrepWastagePercent,
                 i.CurrentQuantity,
+                AvailableQuantity = availableQuantity,
+                UnavailableQuantity = unavailableQuantity,
                 QuantityInPurchaseUnit = i.ConversionRate > 0 ? i.CurrentQuantity / i.ConversionRate : i.CurrentQuantity,
                 i.MinimumQuantity,
                 i.CostPerUnit,
                 BatchQuantityTotal = batchQuantity,
                 HasBatchQuantityMismatch = Math.Abs(i.CurrentQuantity - batchQuantity) > 0.01m,
-                BatchValueTotal = Math.Round(batchValue, 2),
+                HasUntrackedStock = hasUntrackedStock,
                 CostPerPurchaseUnit = averagePurchaseCost,
                 CostPerBaseUnit = averageBaseCost,
-                TotalValue = totalValue,
-                IsLowStock = i.CurrentQuantity <= i.MinimumQuantity,
-                ActiveBatchesCount = remainingBatches.Count(b => b.Status == "active"),
-                NearestExpiryDate = remainingBatches
-                    .Where(b => b.Status == "active" && b.QuantityRemaining > 0)
+                TotalValue = Math.Round(availableValue, 2),
+                IsLowStock = availableQuantity <= i.MinimumQuantity,
+                ActiveBatchesCount = usableBatches.Count,
+                NearestExpiryDate = usableBatches
                     .OrderBy(b => b.ExpiryDate)
                     .Select(b => (DateTime?)b.ExpiryDate)
                     .FirstOrDefault(),
@@ -379,7 +377,11 @@ public class AdminInventoryController : ControllerBase
                 i.CreatedAt,
                 i.UpdatedAt
             };
-        }).ToList();
+        })
+        .Where(i => isLowStock != true || i.IsLowStock)
+        .OrderBy(i => i.IsLowStock ? 0 : 1)
+        .ThenBy(i => i.ItemName)
+        .ToList();
 
         return Ok(new { success = true, data = items });
     }
@@ -579,7 +581,7 @@ public class AdminInventoryController : ControllerBase
 
             try
             {
-                await _hubContext.Clients.All.SendAsync("InventoryUpdated", new { itemId = item.InventoryItemId, eventType = "created" });
+                await _hubContext.PublishAsync(_dbContext, "InventoryUpdated", new { itemId = item.InventoryItemId, eventType = "created" });
             }
             catch { }
 
@@ -638,6 +640,14 @@ public class AdminInventoryController : ControllerBase
             return BadRequest(new { success = false, message = "Nhà cung cấp không tồn tại hoặc đã ngừng hoạt động." });
 
         var requestedBaseUnit = string.IsNullOrWhiteSpace(request.BaseUnit) ? item.BaseUnit : request.BaseUnit.Trim();
+        var requestedPurchaseUnit = string.IsNullOrWhiteSpace(request.PurchaseUnit) ? item.PurchaseUnit : request.PurchaseUnit.Trim();
+        var changesUnits = !string.Equals(requestedBaseUnit, item.BaseUnit, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(requestedPurchaseUnit, item.PurchaseUnit, StringComparison.OrdinalIgnoreCase)
+            || request.ConversionRate != item.ConversionRate;
+        if (changesUnits && (await _dbContext.StockReceiptDetails.AnyAsync(detail => detail.InventoryItemId == id)
+            || await _dbContext.FoodIngredients.AnyAsync(bom => bom.InventoryItemId == id)
+            || await _dbContext.InventoryBatches.AnyAsync(batch => batch.InventoryItemId == id)))
+            return Conflict(new { success = false, message = "Nguyên liệu đã có công thức hoặc lịch sử kho. Giữ nguyên đơn vị và tỷ lệ quy đổi để bảo toàn số liệu; hãy tạo nguyên liệu mới nếu đổi quy cách." });
         var prepWastagePercent = request.PrepWastagePercent ?? item.PrepWastagePercent;
         if (prepWastagePercent < 0 || prepWastagePercent >= 100)
             return BadRequest(new { success = false, message = "Hao hụt sơ chế mặc định phải từ 0 đến dưới 100%." });
@@ -658,7 +668,7 @@ public class AdminInventoryController : ControllerBase
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("InventoryUpdated", new { itemId = item.InventoryItemId, eventType = "updated" });
+            await _hubContext.PublishAsync(_dbContext, "InventoryUpdated", new { itemId = item.InventoryItemId, eventType = "updated" });
         }
         catch { }
 
@@ -697,7 +707,7 @@ public class AdminInventoryController : ControllerBase
 
         try
         {
-            await _hubContext.Clients.All.SendAsync("InventoryUpdated", new { itemId = id, eventType = "deactivated" });
+            await _hubContext.PublishAsync(_dbContext, "InventoryUpdated", new { itemId = id, eventType = "deactivated" });
         }
         catch { }
 
@@ -1358,12 +1368,22 @@ public class AdminInventoryController : ControllerBase
     [HttpGet("alerts")]
     public async Task<IActionResult> GetLowStockAlerts()
     {
-        var lowStockItems = await _dbContext.InventoryItems
+        var today = DateTime.UtcNow.AddHours(7).Date;
+        var itemEntities = await _dbContext.InventoryItems.AsNoTracking()
             .Include(i => i.Supplier)
-            .Where(i => i.IsActive && i.CurrentQuantity <= i.MinimumQuantity)
-            .OrderBy(i => i.CurrentQuantity)
-            .Select(i => new
+            .Include(i => i.InventoryBatches.Where(batch => batch.QuantityRemaining > 0))
+            .Where(i => i.IsActive)
+            .ToListAsync();
+
+        var lowStockItems = itemEntities.Select(i =>
             {
+                var remainingBatches = i.InventoryBatches.Where(batch => batch.QuantityRemaining > 0).ToList();
+                var availableQuantity = remainingBatches.Count == 0
+                    ? i.CurrentQuantity
+                    : remainingBatches.Where(batch => batch.Status == "active" && batch.ExpiryDate.Date >= today)
+                        .Sum(batch => batch.QuantityRemaining);
+                return new
+                {
                 i.InventoryItemId,
                 i.ItemName,
                 Unit = i.BaseUnit,
@@ -1371,13 +1391,17 @@ public class AdminInventoryController : ControllerBase
                 i.PurchaseUnit,
                 i.ConversionRate,
                 i.CurrentQuantity,
+                AvailableQuantity = availableQuantity,
                 i.MinimumQuantity,
                 i.CostPerUnit,
-                Shortage = i.MinimumQuantity - i.CurrentQuantity,
+                Shortage = Math.Max(0m, i.MinimumQuantity - availableQuantity),
                 SupplierName = i.Supplier != null ? i.Supplier.SupplierName : "Chưa có",
                 SupplierPhone = i.Supplier != null ? i.Supplier.Phone : null
+                };
             })
-            .ToListAsync();
+            .Where(item => item.AvailableQuantity <= item.MinimumQuantity)
+            .OrderBy(item => item.AvailableQuantity)
+            .ToList();
 
         return Ok(new
         {
@@ -1391,13 +1415,27 @@ public class AdminInventoryController : ControllerBase
     public async Task<IActionResult> GetInventorySummary()
     {
         var totalItems = await _dbContext.InventoryItems.CountAsync(i => i.IsActive);
-        var lowStockCount = await _dbContext.InventoryItems.CountAsync(i => i.IsActive && i.CurrentQuantity <= i.MinimumQuantity);
-        var today = DateTime.UtcNow.AddHours(7).Date;
+        var nowUtc = DateTime.UtcNow;
+        var today = nowUtc.AddHours(7).Date;
+        var stockLevels = await _dbContext.InventoryItems
+            .Where(i => i.IsActive)
+            .Select(i => new
+            {
+                i.CurrentQuantity,
+                i.MinimumQuantity,
+                RemainingBatchCount = i.InventoryBatches.Count(b => b.QuantityRemaining > 0),
+                AvailableQuantity = i.InventoryBatches
+                    .Where(b => b.Status == "active" && b.QuantityRemaining > 0 && b.ExpiryDate.Date >= today)
+                    .Sum(b => (decimal?)b.QuantityRemaining) ?? 0
+            })
+            .ToListAsync();
+        var lowStockCount = stockLevels.Count(i =>
+            (i.RemainingBatchCount == 0 ? i.CurrentQuantity : i.AvailableQuantity) <= i.MinimumQuantity);
         var totalBatches = await _dbContext.InventoryBatches.CountAsync(b => b.Status == "active" && b.QuantityRemaining > 0 && b.ExpiryDate.Date >= today);
         var totalSuppliers = await _dbContext.Suppliers.CountAsync(s => s.IsActive);
 
         var totalValue = await _dbContext.InventoryBatches
-            .Where(b => b.QuantityRemaining > 0 && b.InventoryItem.IsActive)
+            .Where(b => b.Status == "active" && b.QuantityRemaining > 0 && b.ExpiryDate.Date >= today && b.InventoryItem.IsActive)
             .SumAsync(b => (decimal?)(b.InventoryItem.ConversionRate > 0
                 ? (b.QuantityRemaining / b.InventoryItem.ConversionRate) * b.UnitCost
                 : b.QuantityRemaining * b.UnitCost)) ?? 0;
@@ -1431,6 +1469,90 @@ public class AdminInventoryController : ControllerBase
             })
             .ToListAsync();
 
+        var pendingReceiptCount = await _dbContext.StockReceipts.CountAsync(receipt => receipt.Status == "draft");
+        var recentReceipts = await _dbContext.StockReceipts.AsNoTracking()
+            .OrderByDescending(receipt => receipt.CreatedAt)
+            .ThenByDescending(receipt => receipt.ReceiptId)
+            .Take(5)
+            .Select(receipt => new
+            {
+                receipt.ReceiptId,
+                receipt.ReceiptCode,
+                receipt.ReceiptType,
+                receipt.Status,
+                receipt.CreatedAt,
+                receipt.ApprovedAt,
+                receipt.TotalAmount,
+                ItemCount = receipt.StockReceiptDetails.Count
+            })
+            .ToListAsync();
+
+        var firstMonthLocal = new DateTime(today.Year, today.Month, 1).AddMonths(-5);
+        var flowStartUtc = firstMonthLocal.AddHours(-7);
+        var flowMovements = await _dbContext.StockMovements.AsNoTracking()
+            .Where(movement => movement.CreatedAt >= flowStartUtc && movement.CreatedAt < nowUtc
+                && (movement.MovementType == "import" || movement.MovementType == "export" || movement.MovementType == "waste"))
+            .Select(movement => new
+            {
+                movement.CreatedAt,
+                movement.MovementType,
+                movement.Reason,
+                movement.Quantity,
+                movement.UnitCost,
+                movement.InventoryItem.ConversionRate
+            })
+            .ToListAsync();
+        var flowByMonth = flowMovements.ToLookup(movement => movement.CreatedAt.AddHours(7).ToString("yyyy-MM"));
+        var monthlyStockFlow = Enumerable.Range(0, 6).Select(index =>
+        {
+            var month = firstMonthLocal.AddMonths(index).ToString("yyyy-MM");
+            var group = flowByMonth[month].ToList();
+            decimal Value(string type, bool excludeReturns = false) => group
+                .Where(movement => movement.MovementType == type
+                    && (!excludeReturns || movement.Reason == null
+                        || !movement.Reason.Contains("Hoan bep", StringComparison.OrdinalIgnoreCase)))
+                .Where(movement => movement.UnitCost > 0)
+                .Sum(movement => InventoryCostHelper.CalculateAmount(
+                    movement.Quantity, movement.UnitCost!.Value, movement.ConversionRate));
+            return new
+            {
+                month,
+                ImportValue = Value("import", true),
+                ExportValue = Value("export"),
+                WasteValue = Value("waste"),
+                MissingCostCount = group.Count(movement => movement.UnitCost is null or <= 0)
+            };
+        }).ToList();
+        var issuedLast30Days = await _dbContext.StockMovements.AsNoTracking()
+            .Where(movement => movement.MovementType == "export" && movement.CreatedAt >= nowUtc.AddDays(-30)
+                && movement.CreatedAt < nowUtc)
+            .Select(movement => new
+            {
+                movement.InventoryItemId,
+                movement.InventoryItem.ItemName,
+                movement.InventoryItem.BaseUnit,
+                movement.InventoryItem.ConversionRate,
+                movement.Quantity,
+                movement.UnitCost
+            })
+            .ToListAsync();
+        var topIssuedItems = issuedLast30Days.GroupBy(movement => movement.InventoryItemId)
+            .Select(group => new
+            {
+                InventoryItemId = group.Key,
+                group.First().ItemName,
+                group.First().BaseUnit,
+                Quantity = group.Sum(movement => movement.Quantity),
+                CostValue = group.Where(movement => movement.UnitCost > 0)
+                    .Sum(movement => InventoryCostHelper.CalculateAmount(
+                        movement.Quantity, movement.UnitCost!.Value, movement.ConversionRate)),
+                MissingCostCount = group.Count(movement => movement.UnitCost is null or <= 0)
+            })
+            .OrderByDescending(item => item.CostValue)
+            .ThenBy(item => item.ItemName)
+            .Take(5)
+            .ToList();
+
         return Ok(new
         {
             success = true,
@@ -1443,7 +1565,11 @@ public class AdminInventoryController : ControllerBase
                 totalValue,
                 expiredBatchesCount,
                 expiringBatchesCount,
-                recentMovements
+                recentMovements,
+                pendingReceiptCount,
+                recentReceipts,
+                monthlyStockFlow,
+                topIssuedItems
             }
         });
     }

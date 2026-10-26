@@ -5,11 +5,22 @@ class SignalRService {
     this.connection = null;
     this.listeners = new Map();
     this.isStarting = false;
+    this.connectionToken = null;
+    this.stopTask = Promise.resolve();
+    window.addEventListener('auth-changed', () => this.stop());
+    window.addEventListener('storage', event => {
+      if (event.key === 'token') this.stop();
+    });
+  }
+
+  stop() {
+    this.stopTask = this.connection?.stop().catch(() => {}) || Promise.resolve();
+    return this.stopTask;
   }
 
   getConnection() {
     if (!this.connection) {
-      const hubUrl = 'http://localhost:5079/hubs/restaurant';
+      const hubUrl = `${(import.meta.env.VITE_API_URL || 'http://localhost:5079').replace(/\/$/, '')}/hubs/restaurant`;
       this.connection = new signalR.HubConnectionBuilder()
         .withUrl(hubUrl, {
           accessTokenFactory: () => localStorage.getItem('token') || '',
@@ -36,7 +47,14 @@ class SignalRService {
   }
 
   async start() {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    await this.stopTask;
     const conn = this.getConnection();
+    if (this.connectionToken !== token) {
+      await conn.stop();
+      this.connectionToken = token;
+    }
     if (conn.state === signalR.HubConnectionState.Connected) {
       return conn;
     }

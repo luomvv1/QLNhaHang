@@ -115,7 +115,7 @@ INSERT INTO dbo.Users (RoleId, FullName, Email, Phone, PasswordHash, AvatarUrl, 
 -- Khách hàng thành viên
 INSERT INTO dbo.Customers (UserId, FullName, Phone, Email, PointsBalance, TotalSpent, VisitCount, IsActive, CreatedAt, UpdatedAt) VALUES
 (5, N'Hoàng Khách Thân Thiết', '0909000005', 'khach1@gmail.com', 250, 2500000, 5, 1, @Now, @Now),
-(NULL, N'Đặng Mai Linh (Khách Mới)', '0908123456', 'khach2@gmail.com', 50, 500000, 1, 1, @Now, @Now);
+(NULL, N'Đặng Mai Linh', '0908123456', 'khach2@gmail.com', 50, 500000, 1, 1, @Now, @Now);
 
 -- ============================================================================
 -- 5. TẠO DANH SÁCH BÀN ĂN (DINING TABLES)

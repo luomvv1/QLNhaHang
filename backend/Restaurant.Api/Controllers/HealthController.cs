@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 
@@ -6,6 +7,7 @@ namespace Restaurant.Api.Controllers;
 
 [ApiController]
 [Route("api/health")]
+[AllowAnonymous]
 public class HealthController : ControllerBase
 {
     private readonly RestaurantDbContext _db;

@@ -322,11 +322,30 @@
 
             <div class="d-flex align-items-center gap-1">
               <button
+                type="button"
+                class="btn btn-sm px-2 py-1 rounded-2 fw-semibold"
+                :class="isPublishedToNews(food.foodId) ? 'btn-warning text-dark' : 'btn-outline-secondary'"
+                @click="togglePublishToNews(food)"
+                :title="isPublishedToNews(food.foodId) ? 'Đang hiển thị trên Tin Tức (Nhấn để gỡ)' : 'Đăng món này lên trang Tin Tức'"
+              >
+                📰 {{ isPublishedToNews(food.foodId) ? 'Đã Đăng' : 'Đăng Tin' }}
+              </button>
+
+              <button
                 class="btn btn-sm btn-outline-primary px-2 py-1 rounded-2 fw-semibold"
                 @click="openEditModal(food)"
                 title="Chỉnh sửa thông tin món và hình ảnh"
               >
                 ✏️ Sửa
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger px-2 py-1 rounded-2 fw-semibold"
+                @click="confirmPermanentDeleteFood(food)"
+                title="Xóa vĩnh viễn món ăn này khỏi hệ thống"
+              >
+                🗑️
               </button>
 
               <button
@@ -446,11 +465,28 @@
               <td class="text-center">
                 <div class="d-flex justify-content-center gap-1">
                   <button
+                    type="button"
+                    class="btn btn-sm px-2 rounded-2 fw-semibold"
+                    :class="isPublishedToNews(food.foodId) ? 'btn-warning text-dark' : 'btn-outline-secondary'"
+                    @click="togglePublishToNews(food)"
+                    :title="isPublishedToNews(food.foodId) ? 'Đang hiển thị trên Tin Tức (Nhấn để gỡ)' : 'Đăng món này lên trang Tin Tức'"
+                  >
+                    📰 {{ isPublishedToNews(food.foodId) ? 'Đã Đăng' : 'Đăng Tin' }}
+                  </button>
+                  <button
                     class="btn btn-sm btn-outline-primary px-2 rounded-2"
                     @click="openEditModal(food)"
                     title="Chỉnh sửa thông tin và hình ảnh"
                   >
                     ✏️ Sửa
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-danger px-2 rounded-2 fw-semibold"
+                    @click="confirmPermanentDeleteFood(food)"
+                    title="Xóa vĩnh viễn món ăn này"
+                  >
+                    🗑️ Xóa
                   </button>
                   <button
                     v-if="food.isActive"
@@ -720,6 +756,20 @@
                   </div>
                 </div>
               </div>
+
+              <!-- TÙY CHỌN ĐĂNG LÊN TRANG TIN TỨC -->
+              <div class="p-3 mt-3 bg-warning-subtle rounded-3 border border-warning-subtle d-flex align-items-center justify-content-between">
+                <div>
+                  <div class="fw-bold small text-dark d-flex align-items-center gap-1">
+                    <span>📰</span>
+                    <span>Đăng bài giới thiệu món mới lên trang Tin Tức</span>
+                  </div>
+                  <small class="text-muted">Món ăn này sẽ tự động xuất hiện trên chuyên mục Món Mới Ra Mắt của trang Tin Tức cho thực khách.</small>
+                </div>
+                <div class="form-check form-switch mb-0 fs-5">
+                  <input class="form-check-input" type="checkbox" v-model="form.publishToNews" role="switch">
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -765,6 +815,51 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL XÁC NHẬN XÓA VĨNH VIỄN MÓN ĂN -->
+    <div v-if="showDeleteFoodModal" class="modal-backdrop-custom" @click.self="showDeleteFoodModal = false">
+      <div class="card p-4 dialog shadow-lg border-0 rounded-4" style="max-width: 480px;">
+        <div class="d-flex align-items-center gap-2 mb-3 text-danger">
+          <span class="fs-3">🗑️</span>
+          <h5 class="fw-bold m-0">Xóa Vĩnh Viễn Món Ăn</h5>
+        </div>
+
+        <div class="d-flex align-items-center gap-3 p-3 bg-light rounded-3 mb-3 border">
+          <img 
+            :src="foodToDelete?.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=120&auto=format&fit=crop&q=80'" 
+            class="rounded-3 object-fit-cover shadow-xs border"
+            style="width: 60px; height: 60px;"
+          />
+          <div>
+            <h6 class="fw-bold text-dark mb-1">{{ foodToDelete?.foodName }}</h6>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ foodToDelete?.categoryName }}</span>
+              <span class="text-danger fw-bold small">{{ formatCurrency(foodToDelete?.minPrice) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-dark small mb-2">
+          Bạn có chắc chắn muốn xóa vĩnh viễn món <strong>"{{ foodToDelete?.foodName }}"</strong> khỏi thực đơn nhà hàng không?
+        </p>
+
+        <div class="p-3 bg-light rounded-3 border mb-3 small text-muted">
+          <div class="d-flex align-items-center gap-1.5 text-secondary fw-semibold mb-1">
+            <span>ℹ️</span> <span>Ghi chú hệ thống:</span>
+          </div>
+          <div>Các phiếu hóa đơn và đơn gọi món trước đây đã lưu vết ảnh chụp tên món và giá tiền tại thời điểm thanh toán. Việc xóa món này giúp làm gọn thực đơn mà không ảnh hưởng báo cáo doanh thu.</div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 border-top pt-3">
+          <button type="button" class="btn btn-light rounded-3 px-3" @click="showDeleteFoodModal = false" :disabled="isDeletingFood">
+            Hủy Bỏ
+          </button>
+          <button type="button" class="btn btn-danger fw-bold px-3 rounded-3 shadow-xs" @click="executePermanentDeleteFood" :disabled="isDeletingFood">
+            {{ isDeletingFood ? 'Đang Xóa...' : 'Xác Nhận Xóa Món' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -786,10 +881,76 @@ const isEditing = ref(false);
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const isUploadingImage = ref(false);
+const showDeleteFoodModal = ref(false);
+const foodToDelete = ref(null);
+const isDeletingFood = ref(false);
+
+function confirmPermanentDeleteFood(food) {
+  foodToDelete.value = food;
+  showDeleteFoodModal.value = true;
+}
+
+async function executePermanentDeleteFood() {
+  if (!foodToDelete.value) return;
+  errorMessage.value = '';
+  successMessage.value = '';
+  isDeletingFood.value = true;
+
+  try {
+    const res = await axios.delete(`${api}/food/permanent-delete`, {
+      params: { foodId: foodToDelete.value.foodId }
+    });
+    successMessage.value = res.data?.message || `Đã xóa vĩnh viễn món "${foodToDelete.value.foodName}" thành công!`;
+    
+    // Gỡ món khỏi danh sách tin tức nếu có
+    const idx = publishedNewsFoodIds.value.indexOf(foodToDelete.value.foodId);
+    if (idx > -1) {
+      publishedNewsFoodIds.value.splice(idx, 1);
+      localStorage.setItem(PUBLISHED_FOODS_KEY, JSON.stringify(publishedNewsFoodIds.value));
+    }
+
+    showDeleteFoodModal.value = false;
+    foodToDelete.value = null;
+    await loadData();
+  } catch (e) {
+    errorMessage.value = e.response?.data?.message || 'Lỗi khi xóa món ăn.';
+  } finally {
+    isDeletingFood.value = false;
+  }
+}
 const errorMessage = ref('');
 const successMessage = ref('');
 const fileInputRef = ref(null);
 const lightboxFood = ref(null);
+
+const PUBLISHED_FOODS_KEY = 'published_news_food_ids';
+const publishedNewsFoodIds = ref([]);
+
+function loadPublishedNewsFoodIds() {
+  try {
+    const raw = localStorage.getItem(PUBLISHED_FOODS_KEY);
+    publishedNewsFoodIds.value = raw ? JSON.parse(raw) : [];
+  } catch {
+    publishedNewsFoodIds.value = [];
+  }
+}
+
+function isPublishedToNews(foodId) {
+  return publishedNewsFoodIds.value.includes(foodId);
+}
+
+function togglePublishToNews(food) {
+  const id = food.foodId;
+  const idx = publishedNewsFoodIds.value.indexOf(id);
+  if (idx > -1) {
+    publishedNewsFoodIds.value.splice(idx, 1);
+    successMessage.value = `Đã gỡ món "${food.foodName}" khỏi trang Tin Tức.`;
+  } else {
+    publishedNewsFoodIds.value.push(id);
+    successMessage.value = `Đã đăng món "${food.foodName}" lên trang Tin Tức thành công!`;
+  }
+  localStorage.setItem(PUBLISHED_FOODS_KEY, JSON.stringify(publishedNewsFoodIds.value));
+}
 
 const form = ref({
   foodId: 0,
@@ -800,6 +961,7 @@ const form = ref({
   minPrice: 0,
   foodStatus: 'available',
   isActive: true,
+  publishToNews: true,
   variants: [
     { variantId: 0, variantName: 'Phần Tiêu Chuẩn', price: 0, unit: 'Phần' }
   ]
@@ -910,6 +1072,7 @@ function openCreateModal() {
     minPrice: 0,
     foodStatus: 'available',
     isActive: true,
+    publishToNews: true,
     variants: [
       { variantId: 0, variantName: 'Phần Tiêu Chuẩn', price: 0, unit: 'Phần' }
     ]
@@ -928,6 +1091,7 @@ function openEditModal(food) {
     minPrice: food.minPrice,
     foodStatus: food.foodStatus ?? 'available',
     isActive: food.isActive,
+    publishToNews: isPublishedToNews(food.foodId),
     variants: (food.variants ?? []).map(v => ({
       variantId: v.variantId,
       variantName: v.variantName,
@@ -1016,6 +1180,18 @@ async function saveFood() {
 
     showModal.value = false;
     await loadData();
+
+    // Update publish to news in localStorage
+    const savedFood = foods.value.find(f => f.foodName === form.value.foodName) || { foodId: form.value.foodId };
+    if (savedFood && savedFood.foodId) {
+      const idx = publishedNewsFoodIds.value.indexOf(savedFood.foodId);
+      if (form.value.publishToNews && idx === -1) {
+        publishedNewsFoodIds.value.push(savedFood.foodId);
+      } else if (!form.value.publishToNews && idx > -1) {
+        publishedNewsFoodIds.value.splice(idx, 1);
+      }
+      localStorage.setItem(PUBLISHED_FOODS_KEY, JSON.stringify(publishedNewsFoodIds.value));
+    }
   } catch (e) {
     errorMessage.value = e.response?.data?.message ?? 'Lỗi khi lưu món ăn.';
   } finally {
@@ -1061,7 +1237,10 @@ function formatCurrency(amount) {
   return Number(amount).toLocaleString('vi-VN') + ' ₫';
 }
 
-onMounted(loadData);
+onMounted(() => {
+  loadPublishedNewsFoodIds();
+  loadData();
+});
 </script>
 
 <style scoped>

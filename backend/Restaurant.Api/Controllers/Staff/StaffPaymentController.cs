@@ -6,6 +6,8 @@ using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
 using Restaurant.Api.Hubs;
 using System.Security.Claims;
+using System.Data;
+using Restaurant.Api.Services;
 
 namespace Restaurant.Api.Controllers.Staff;
 
@@ -149,7 +151,26 @@ public class StaffPaymentController : ControllerBase
             return NotFound(new { message = $"Không tìm thấy đơn hàng #{orderId}." });
         }
 
-        if (order.OrderStatus == "paid" || order.OrderStatus == "cancelled" || order.OrderStatus == "merged")
+        if (order.OrderStatus == "paid")
+        {
+            var invoice = await _dbContext.Invoices.FirstOrDefaultAsync(i => i.OrderId == orderId);
+            return Ok(new
+            {
+                orderId = order.OrderId,
+                isPaid = true,
+                orderStatus = "paid",
+                invoice = invoice != null ? new
+                {
+                    invoice.InvoiceId,
+                    invoice.InvoiceCode,
+                    invoice.OrderId,
+                    invoice.TotalAmount
+                } : null,
+                message = "Đơn hàng đã được thanh toán thành công."
+            });
+        }
+
+        if (order.OrderStatus == "cancelled" || order.OrderStatus == "merged")
         {
             return BadRequest(new { message = $"Đơn hàng #{orderId} đang ở trạng thái '{order.OrderStatus}', không thể thanh toán." });
         }
@@ -167,11 +188,64 @@ public class StaffPaymentController : ControllerBase
                 i.Quantity,
                 LineTotal = i.UnitPrice * i.Quantity,
                 i.ItemStatus,
-                i.Note
+                i.Note,
+                i.CreatedAt
             })
             .ToList();
 
         decimal subtotal = activeItems.Sum(i => i.LineTotal);
+
+        // Gộp món thông minh (Smart Grouping) cho đơn hàng có nhiều đợt gọi cùng món
+        var groupedItems = activeItems
+            .GroupBy(i => new { i.FoodId, i.VariantId, i.FoodNameSnapshot, i.UnitPrice })
+            .Select(g => new
+            {
+                g.Key.FoodId,
+                g.Key.VariantId,
+                g.Key.FoodNameSnapshot,
+                g.Key.UnitPrice,
+                Quantity = g.Sum(x => x.Quantity),
+                LineTotal = g.Sum(x => x.LineTotal),
+                BatchCount = g.Count(),
+                Notes = g.Where(x => !string.IsNullOrWhiteSpace(x.Note)).Select(x => x.Note!.Trim()).Distinct().ToList(),
+                Batches = g.Select(b => new
+                {
+                    b.OrderItemId,
+                    b.Quantity,
+                    b.LineTotal,
+                    b.Note,
+                    b.ItemStatus,
+                    b.CreatedAt
+                }).ToList()
+            })
+            .ToList();
+
+        // Lấy danh sách chương trình khuyến mãi / Voucher đang hoạt động của nhà hàng (Sắp xếp giảm nhiều đến ít)
+        var now = DateTime.UtcNow;
+        var availablePromotionsQuery = await _dbContext.Promotions
+            .Where(p => p.IsActive && p.StartAt <= now && p.EndAt >= now && (!p.UsageLimit.HasValue || p.UsedCount < p.UsageLimit.Value))
+            .Select(p => new
+            {
+                p.PromotionId,
+                p.PromotionCode,
+                p.PromotionName,
+                p.PromotionType,
+                p.PromotionValue,
+                p.MinimumOrderValue,
+                p.UsageLimit,
+                p.UsedCount,
+                p.EndAt,
+                IsEligible = subtotal >= p.MinimumOrderValue,
+                DiscountAmount = p.PromotionType == "percent"
+                    ? Math.Round(subtotal * p.PromotionValue / 100m, 0)
+                    : Math.Min(p.PromotionValue, subtotal)
+            })
+            .ToListAsync();
+
+        var availablePromotions = availablePromotionsQuery
+            .OrderByDescending(p => p.DiscountAmount)
+            .ThenBy(p => p.MinimumOrderValue)
+            .ToList();
 
         var primaryTable = order.OrderTables.FirstOrDefault(ot => ot.IsPrimary)?.Table 
                            ?? order.OrderTables.FirstOrDefault()?.Table;
@@ -196,6 +270,9 @@ public class StaffPaymentController : ControllerBase
         return Ok(new
         {
             order.OrderId,
+            CanCheckout = activeItems.Count > 0,
+            UnservedQuantity = activeItems.Where(i => i.ItemStatus != "served").Sum(i => i.Quantity),
+            HasUnservedItems = activeItems.Any(i => i.ItemStatus != "served"),
             order.OrderStatus,
             OrderCode = $"ORD-{order.OrderId:D4}",
             TableDisplay = tableDisplay,
@@ -204,6 +281,8 @@ public class StaffPaymentController : ControllerBase
             order.CreatedAt,
             Subtotal = subtotal,
             Items = activeItems,
+            GroupedItems = groupedItems,
+            AvailablePromotions = availablePromotions,
             Customer = order.Customer != null ? new
             {
                 order.Customer.CustomerId,
@@ -225,6 +304,43 @@ public class StaffPaymentController : ControllerBase
                 Memo = $"ORD{order.OrderId:D4}"
             }
         });
+    }
+
+    /// <summary>
+    /// [GET] Lấy danh sách khuyến mãi / Voucher đang chạy của nhà hàng cho nhân viên chọn
+    /// URL: /api/staff/payment/available-promotions?subtotal=...
+    /// </summary>
+    [HttpGet("available-promotions")]
+    public async Task<IActionResult> GetAvailablePromotions([FromQuery] decimal? subtotal = null)
+    {
+        var now = DateTime.UtcNow;
+        var promotionsQuery = await _dbContext.Promotions
+            .Where(p => p.IsActive && p.StartAt <= now && p.EndAt >= now && (!p.UsageLimit.HasValue || p.UsedCount < p.UsageLimit.Value))
+            .Select(p => new
+            {
+                p.PromotionId,
+                p.PromotionCode,
+                p.PromotionName,
+                p.PromotionType,
+                p.PromotionValue,
+                p.MinimumOrderValue,
+                p.UsageLimit,
+                p.UsedCount,
+                p.EndAt,
+                IsEligible = !subtotal.HasValue || subtotal.Value >= p.MinimumOrderValue,
+                DiscountAmount = !subtotal.HasValue ? 0 :
+                    (p.PromotionType == "percent"
+                        ? Math.Round(subtotal.Value * p.PromotionValue / 100m, 0)
+                        : Math.Min(p.PromotionValue, subtotal.Value))
+            })
+            .ToListAsync();
+
+        var promotions = promotionsQuery
+            .OrderByDescending(p => p.DiscountAmount)
+            .ThenBy(p => p.MinimumOrderValue)
+            .ToList();
+
+        return Ok(promotions);
     }
 
     /// <summary>
@@ -415,7 +531,8 @@ public class StaffPaymentController : ControllerBase
         var now = DateTime.UtcNow;
 
         // BẮT ĐẦU TRANSACTION TOÀN VẸN
-        using var transaction = await _dbContext.Database.BeginTransactionAsync();
+        await using var transaction = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable) : null;
         try
         {
             // 1. Kiểm tra đơn hàng
@@ -447,6 +564,17 @@ public class StaffPaymentController : ControllerBase
             if (activeItems.Count == 0)
             {
                 return BadRequest(new { message = "Đơn hàng không có món ăn nào hợp lệ để thanh toán." });
+            }
+
+            // Tự động hoàn tất trạng thái phục vụ cho các món còn lại khi khách thanh toán
+            var unservedItems = activeItems.Where(item => item.ItemStatus != "served").ToList();
+            if (unservedItems.Count > 0)
+            {
+                foreach (var itm in unservedItems)
+                {
+                    itm.ItemStatus = "served";
+                }
+                await ServedPortionRecorder.RecordAsync(_dbContext, unservedItems, now);
             }
 
             // 2. Tính Subtotal
@@ -577,12 +705,21 @@ public class StaffPaymentController : ControllerBase
                 };
                 _dbContext.InvoiceItems.Add(invoiceItem);
 
-                // Cập nhật trạng thái OrderItem sang served nếu chưa hoàn tất
-                if (item.ItemStatus != "served")
-                {
-                    item.ItemStatus = "served";
-                    item.UpdatedAt = now;
-                }
+            }
+
+            decimal changeToReturn = 0;
+            if (paymentMethod == "cash" && request.AmountPaidByCustomer > finalTotal)
+            {
+                changeToReturn = request.AmountPaidByCustomer - finalTotal;
+            }
+
+            string transCode = string.IsNullOrWhiteSpace(request.TransactionCode) 
+                ? $"{paymentMethod.ToUpper()}-{DateTime.UtcNow:yyyyMMddHHmmss}" 
+                : request.TransactionCode.Trim();
+
+            if (paymentMethod == "cash" && request.AmountPaidByCustomer > 0)
+            {
+                transCode += $"|PAID:{(long)request.AmountPaidByCustomer}|CHANGE:{(long)changeToReturn}";
             }
 
             // 9. Ghi nhận giao dịch thanh toán (Payments)
@@ -591,9 +728,7 @@ public class StaffPaymentController : ControllerBase
                 InvoiceId = invoice.InvoiceId,
                 PaymentMethod = paymentMethod,
                 Amount = finalTotal,
-                TransactionCode = string.IsNullOrWhiteSpace(request.TransactionCode) 
-                    ? $"{paymentMethod.ToUpper()}-{DateTime.UtcNow:yyyyMMddHHmmss}" 
-                    : request.TransactionCode.Trim(),
+                TransactionCode = transCode,
                 PaymentStatus = "completed",
                 PaidAt = now
             };
@@ -672,24 +807,19 @@ public class StaffPaymentController : ControllerBase
             await _dbContext.SaveChangesAsync();
 
             // COMMIT TOÀN BỘ TRANSACTION AN TOÀN
-            await transaction.CommitAsync();
+            if (transaction != null) await transaction.CommitAsync();
 
             // PHÁT SÓNG SIGNALR REALTIME TỨC THÌ (Giải phóng bàn & cập nhật màn hình phục vụ + bếp)
             try
             {
-                await _hubContext.Clients.All.SendAsync("StaffOrderUpdated");
-                await _hubContext.Clients.All.SendAsync("KitchenUpdated");
+                await _hubContext.PublishAsync(_dbContext, "StaffOrderUpdated");
+                await _hubContext.PublishAsync(_dbContext, "KitchenUpdated");
             }
             catch (Exception hubEx)
             {
                 Console.WriteLine($"[SignalR StaffPayment] Broadcast error: {hubEx.Message}");
             }
 
-            decimal changeToReturn = 0;
-            if (paymentMethod == "cash" && request.AmountPaidByCustomer > finalTotal)
-            {
-                changeToReturn = request.AmountPaidByCustomer - finalTotal;
-            }
 
             return Ok(new
             {
@@ -701,6 +831,8 @@ public class StaffPaymentController : ControllerBase
                     invoice.OrderId,
                     invoice.Subtotal,
                     invoice.DiscountAmount,
+                    VoucherCode = appliedPromotion?.PromotionCode ?? "",
+                    VoucherName = appliedPromotion?.PromotionName ?? "",
                     VoucherDiscount = discountAmount,
                     PointDiscount = pointDiscount,
                     invoice.PointsUsed,
@@ -711,12 +843,14 @@ public class StaffPaymentController : ControllerBase
                     PaymentMethod = paymentMethod,
                     AmountPaidByCustomer = request.AmountPaidByCustomer,
                     ChangeToReturn = changeToReturn,
+                    TableDisplay = freedTableNames.Count > 0 ? string.Join(", ", freedTableNames) : "Bàn phục vụ",
                     FreedTables = freedTableNames,
                     Customer = customer != null ? new
                     {
                         customer.CustomerId,
                         customer.FullName,
                         customer.Phone,
+                        PointsBalance = customer.PointsBalance,
                         NewPointsBalance = customer.PointsBalance
                     } : null
                 }
@@ -724,7 +858,7 @@ public class StaffPaymentController : ControllerBase
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
+            if (transaction != null) await transaction.RollbackAsync();
             return StatusCode(500, new
             {
                 message = "Đã xảy ra lỗi trong quá trình thực hiện transaction thanh toán: " + ex.Message,
@@ -749,6 +883,8 @@ public class StaffPaymentController : ControllerBase
             .Include(inv => inv.IssuedByNavigation)
             .Include(inv => inv.InvoiceItems)
             .Include(inv => inv.Payments)
+            .Include(inv => inv.PromotionUsages)
+                .ThenInclude(pu => pu.Promotion)
             .FirstOrDefaultAsync(inv => inv.InvoiceId == invoiceId);
 
         if (invoice == null)
@@ -772,6 +908,37 @@ public class StaffPaymentController : ControllerBase
             tableDisplay += " (+ " + string.Join(", ", secondaries) + ")";
         }
 
+        decimal amountPaidByCustomer = invoice.TotalAmount;
+        decimal changeToReturn = 0;
+        var firstPayment = invoice.Payments.FirstOrDefault();
+        if (firstPayment != null && firstPayment.TransactionCode != null && firstPayment.TransactionCode.Contains("|PAID:"))
+        {
+            var parts = firstPayment.TransactionCode.Split('|');
+            foreach (var part in parts)
+            {
+                if (part.StartsWith("PAID:") && decimal.TryParse(part.Substring(5), out var paid))
+                {
+                    amountPaidByCustomer = paid;
+                }
+                else if (part.StartsWith("CHANGE:") && decimal.TryParse(part.Substring(7), out var change))
+                {
+                    changeToReturn = change;
+                }
+            }
+        }
+
+        var promoUsage = invoice.PromotionUsages.FirstOrDefault();
+        string voucherCode = promoUsage?.Promotion?.PromotionCode ?? "";
+        string voucherName = promoUsage?.Promotion?.PromotionName ?? "";
+        decimal voucherDiscount = promoUsage?.DiscountAmount ?? 0m;
+        decimal pointDiscount = invoice.PointsUsed * 1000m;
+
+        // Tự động phân rã nếu chưa lưu record PromotionUsage nhưng có chênh lệch giảm giá
+        if (voucherDiscount <= 0 && invoice.DiscountAmount > pointDiscount)
+        {
+            voucherDiscount = invoice.DiscountAmount - pointDiscount;
+        }
+
         return Ok(new
         {
             invoice.InvoiceId,
@@ -789,15 +956,25 @@ public class StaffPaymentController : ControllerBase
             } : null,
             invoice.Subtotal,
             invoice.DiscountAmount,
+            VoucherCode = voucherCode,
+            VoucherName = voucherName,
+            VoucherDiscount = voucherDiscount,
+            PointDiscount = pointDiscount,
             invoice.PointsUsed,
             invoice.PointsEarned,
             invoice.TotalAmount,
-            Payments = invoice.Payments.Select(p => new
+            AmountPaidByCustomer = amountPaidByCustomer,
+            ChangeToReturn = changeToReturn,
+            Payments = invoice.Payments.Select(p =>
             {
-                p.PaymentMethod,
-                p.Amount,
-                p.TransactionCode,
-                p.PaidAt
+                string displayTransCode = p.TransactionCode?.Split('|').FirstOrDefault() ?? p.TransactionCode ?? "";
+                return new
+                {
+                    p.PaymentMethod,
+                    p.Amount,
+                    TransactionCode = displayTransCode,
+                    p.PaidAt
+                };
             }).ToList(),
             Items = invoice.InvoiceItems.Select(i => new
             {
@@ -827,6 +1004,8 @@ public class StaffPaymentController : ControllerBase
             .Include(inv => inv.Customer)
             .Include(inv => inv.IssuedByNavigation)
             .Include(inv => inv.Payments)
+            .Include(inv => inv.PromotionUsages)
+                .ThenInclude(pu => pu.Promotion)
             .OrderByDescending(inv => inv.IssuedAt)
             .Take(limit)
             .Select(inv => new
@@ -837,6 +1016,10 @@ public class StaffPaymentController : ControllerBase
                 TableDisplay = string.Join(", ", inv.Order.OrderTables.Select(ot => ot.Table.TableName)),
                 inv.Subtotal,
                 inv.DiscountAmount,
+                VoucherCode = inv.PromotionUsages.Select(pu => pu.Promotion.PromotionCode).FirstOrDefault() ?? "",
+                VoucherDiscount = inv.PromotionUsages.Select(pu => (decimal?)pu.DiscountAmount).FirstOrDefault()
+                    ?? (inv.DiscountAmount > (inv.PointsUsed * 1000m) ? inv.DiscountAmount - (inv.PointsUsed * 1000m) : 0m),
+                PointDiscount = inv.PointsUsed * 1000m,
                 inv.PointsUsed,
                 inv.PointsEarned,
                 inv.TotalAmount,
@@ -868,6 +1051,7 @@ public class StaffPaymentController : ControllerBase
     /// </summary>
     /// <param name="request">Thông tin tài khoản ngân hàng</param>
     [HttpPost("bank-config")]
+    [Authorize(Roles = "admin")]
     public IActionResult UpdateBankConfigEndpoint([FromBody] BankConfigRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.AccountNo))

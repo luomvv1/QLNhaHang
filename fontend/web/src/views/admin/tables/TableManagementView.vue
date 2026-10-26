@@ -84,6 +84,35 @@
           + Thêm khu vực
         </button>
       </div>
+
+      <!-- Action bar quản lý phân khu khi đang chọn 1 khu vực cụ thể -->
+      <div v-if="selectedArea" class="d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 py-2 mt-2 bg-light rounded-3 border">
+        <div class="d-flex align-items-center gap-2 small">
+          <span class="text-muted">Đang xem khu vực:</span>
+          <span class="fw-bold text-dark fs-6">📍 {{ selectedArea }}</span>
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">
+            {{ getTablesCountByArea(selectedArea) }} bàn
+          </span>
+        </div>
+        <div class="d-flex align-items-center gap-1.5">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary rounded-3 px-2.5 py-1 fw-semibold small d-flex align-items-center gap-1 shadow-xs"
+            @click="openRenameAreaModal(selectedArea)"
+            title="Đổi tên cho khu vực này"
+          >
+            <span>✏️</span> <span>Đổi Tên Khu Vực</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-danger rounded-3 px-2.5 py-1 fw-semibold small d-flex align-items-center gap-1 shadow-xs"
+            @click="openDeleteAreaModal(selectedArea)"
+            title="Xóa khu vực này và chuyển/xóa các bàn ăn"
+          >
+            <span>🗑️</span> <span>Xóa Khu Vực Này</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- ============================================================== -->
@@ -220,14 +249,23 @@
             <!-- Footer thao tác -->
             <div class="mt-3 pt-2 border-top">
               <div class="d-flex justify-content-between align-items-center">
-                <!-- Nút Sửa -->
-                <button
-                  class="btn btn-sm btn-outline-primary px-3 rounded-3 fw-semibold"
-                  @click="openEditModal(table)"
-                  title="Chỉnh sửa thông tin bàn hoặc đổi khu vực"
-                >
-                  ✏️ Sửa
-                </button>
+                <!-- Nút Sửa & Xóa Bàn -->
+                <div class="d-flex align-items-center gap-1">
+                  <button
+                    class="btn btn-sm btn-outline-primary px-2.5 rounded-3 fw-semibold"
+                    @click="openEditModal(table)"
+                    title="Chỉnh sửa thông tin bàn hoặc đổi khu vực"
+                  >
+                    ✏️ Sửa
+                  </button>
+                  <button
+                    class="btn btn-sm btn-outline-danger px-2 rounded-3 fw-semibold"
+                    @click="confirmPermanentDeleteTable(table)"
+                    title="Xóa vĩnh viễn bàn ăn này khỏi hệ thống"
+                  >
+                    🗑️ Xóa
+                  </button>
+                </div>
 
                 <!-- Thao tác nhanh trạng thái hoạt động -->
                 <div class="d-flex gap-1">
@@ -433,6 +471,152 @@
         </div>
       </form>
     </div>
+
+    <!-- ============================================================== -->
+    <!-- MODAL XÁC NHẬN XÓA BÀN ĂN VĨNH VIỄN                           -->
+    <!-- ============================================================== -->
+    <div v-if="showDeleteTableModal" class="modal-backdrop-custom" @click.self="showDeleteTableModal = false">
+      <div class="card p-4 dialog shadow-lg border-0 rounded-4" style="max-width: 480px;">
+        <div class="d-flex align-items-center gap-2 mb-3 text-danger">
+          <span class="fs-3">🗑️</span>
+          <h5 class="fw-bold m-0">Xóa Vĩnh Viễn Bàn Ăn</h5>
+        </div>
+
+        <p class="text-dark mb-2">
+          Bạn có chắc chắn muốn xóa vĩnh viễn bàn <strong>{{ tableToDelete?.tableName }}</strong> (Mã: <code>{{ tableToDelete?.tableCode }}</code>) khỏi sơ đồ nhà hàng không?
+        </p>
+
+        <div class="p-3 bg-light rounded-3 border mb-3 small text-muted">
+          <div class="d-flex align-items-center gap-1.5 text-secondary fw-semibold mb-1">
+            <span>ℹ️</span> <span>Ghi chú hệ thống:</span>
+          </div>
+          <div>Phiếu hóa đơn thanh toán của bàn đã được in và kết toán tại thời điểm thu ngân chốt bill. Việc xóa bàn này sẽ gỡ bỏ vị trí bàn khỏi danh sách mà không làm sai lệch doanh thu của nhà hàng.</div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 border-top pt-3">
+          <button type="button" class="btn btn-light rounded-3 px-3" @click="showDeleteTableModal = false" :disabled="isDeletingTable">
+            Hủy Bỏ
+          </button>
+          <button type="button" class="btn btn-danger fw-bold px-3 rounded-3 shadow-xs" @click="executePermanentDeleteTable" :disabled="isDeletingTable">
+            {{ isDeletingTable ? 'Đang Xóa...' : 'Xác Nhận Xóa Bàn' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- MODAL ĐỔI TÊN PHÂN KHU VỰC                                    -->
+    <!-- ============================================================== -->
+    <div v-if="showRenameAreaModal" class="modal-backdrop-custom" @click.self="showRenameAreaModal = false">
+      <div class="card p-4 dialog shadow-lg border-0 rounded-4" style="max-width: 480px;">
+        <div class="d-flex align-items-center gap-2 mb-3 text-primary">
+          <span class="fs-3">✏️</span>
+          <h5 class="fw-bold m-0">Đổi Tên Phân Khu Vực</h5>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small text-muted mb-1">Khu vực hiện tại:</label>
+          <div class="p-2 bg-light rounded-3 fw-bold text-dark border">
+            📍 {{ areaToRename }} ({{ getTablesCountByArea(areaToRename) }} bàn)
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold text-dark mb-1">
+            Tên khu vực mới <span class="text-danger">*</span>
+          </label>
+          <input
+            v-model="newAreaNameInput"
+            class="form-control rounded-3"
+            placeholder="VD: Tầng 3 - Sân Thượng..."
+            @keyup.enter="executeRenameArea"
+            required
+          />
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 border-top pt-3">
+          <button type="button" class="btn btn-light rounded-3 px-3" @click="showRenameAreaModal = false" :disabled="isRenamingArea">
+            Hủy
+          </button>
+          <button type="button" class="btn btn-primary fw-bold px-3 rounded-3 shadow-xs" @click="executeRenameArea" :disabled="isRenamingArea">
+            {{ isRenamingArea ? 'Đang Lưu...' : 'Cập Nhật Tên' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- MODAL XÓA PHÂN KHU VỰC                                        -->
+    <!-- ============================================================== -->
+    <div v-if="showDeleteAreaModal" class="modal-backdrop-custom" @click.self="showDeleteAreaModal = false">
+      <div class="card p-4 dialog shadow-lg border-0 rounded-4" style="max-width: 520px;">
+        <div class="d-flex align-items-center gap-2 mb-3 text-danger">
+          <span class="fs-3">🗑️</span>
+          <h5 class="fw-bold m-0">Xóa Khu Vực Bàn Ăn</h5>
+        </div>
+
+        <p class="text-dark mb-3">
+          Bạn đang yêu cầu xóa phân khu <strong>"{{ areaToDelete }}"</strong>. Hiện có <strong>{{ getTablesCountByArea(areaToDelete) }} bàn ăn</strong> thuộc khu vực này.
+        </p>
+
+        <!-- Nếu khu vực có bàn: cung cấp 2 lựa chọn -->
+        <div v-if="getTablesCountByArea(areaToDelete) > 0" class="mb-3">
+          <label class="form-label fw-semibold small text-dark mb-2">Chọn phương án xử lý các bàn:</label>
+
+          <div class="form-check p-3 border rounded-3 mb-2 bg-light" :class="{ 'border-primary bg-primary-subtle': deleteAreaMode === 'transfer' }">
+            <input
+              class="form-check-input"
+              type="radio"
+              name="deleteAreaMode"
+              id="modeTransfer"
+              value="transfer"
+              v-model="deleteAreaMode"
+            >
+            <label class="form-check-label fw-semibold text-dark" for="modeTransfer">
+              Chuyển {{ getTablesCountByArea(areaToDelete) }} bàn này sang khu vực khác
+            </label>
+            <div v-if="deleteAreaMode === 'transfer'" class="mt-2">
+              <label class="form-label small text-muted mb-1">Chọn khu vực tiếp nhận bàn:</label>
+              <select v-model="targetTransferArea" class="form-select form-select-sm rounded-2">
+                <option v-for="area in uniqueAreas.filter(a => a !== areaToDelete)" :key="area" :value="area">
+                  📍 {{ area }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-check p-3 border rounded-3 bg-light" :class="{ 'border-danger bg-danger-subtle': deleteAreaMode === 'delete_tables' }">
+            <input
+              class="form-check-input"
+              type="radio"
+              name="deleteAreaMode"
+              id="modeDeleteTables"
+              value="delete_tables"
+              v-model="deleteAreaMode"
+            >
+            <label class="form-check-label fw-semibold text-danger" for="modeDeleteTables">
+              Xóa luôn tất cả {{ getTablesCountByArea(areaToDelete) }} bàn ăn trong khu vực này
+            </label>
+            <small class="d-block text-muted mt-1" style="font-size: 0.75rem;">
+              * Thích hợp khi bạn tạo nháp hoặc gõ nhầm tên khu vực. Hóa đơn giấy đã in tại thời điểm thanh toán nên không bị ảnh hưởng.
+            </small>
+          </div>
+        </div>
+
+        <div v-else class="p-3 bg-light border rounded-3 text-muted small mb-3">
+          Khu vực này hiện không có bàn nào, sẽ được xóa ngay khỏi hệ thống.
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 border-top pt-3">
+          <button type="button" class="btn btn-light rounded-3 px-3" @click="showDeleteAreaModal = false" :disabled="isDeletingArea">
+            Hủy Bỏ
+          </button>
+          <button type="button" class="btn btn-danger fw-bold px-3 rounded-3 shadow-xs" @click="executeDeleteArea" :disabled="isDeletingArea">
+            {{ isDeletingArea ? 'Đang Xử Lý...' : 'Xác Nhận Xóa Khu Vực' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -462,6 +646,133 @@ const form = ref({
   capacity: 4,
   operationalStatus: 'active' // 'active', 'maintenance', 'disabled'
 });
+
+// Quản lý Modal Xóa Bàn Ăn
+const showDeleteTableModal = ref(false);
+const tableToDelete = ref(null);
+const isDeletingTable = ref(false);
+
+// Quản lý Modal Xóa Phân Khu Vực
+const showDeleteAreaModal = ref(false);
+const areaToDelete = ref('');
+const deleteAreaMode = ref('transfer'); // 'transfer' hoặc 'delete_tables'
+const targetTransferArea = ref('');
+const isDeletingArea = ref(false);
+
+// Quản lý Modal Đổi Tên Phân Khu Vực
+const showRenameAreaModal = ref(false);
+const areaToRename = ref('');
+const newAreaNameInput = ref('');
+const isRenamingArea = ref(false);
+
+// Xử lý Xóa Bàn
+function confirmPermanentDeleteTable(table) {
+  tableToDelete.value = table;
+  showDeleteTableModal.value = true;
+}
+
+async function executePermanentDeleteTable() {
+  if (!tableToDelete.value) return;
+  errorMessage.value = '';
+  successMessage.value = '';
+  isDeletingTable.value = true;
+
+  try {
+    const res = await axios.delete(`${api}/permanent-delete`, {
+      params: { tableId: tableToDelete.value.tableId }
+    });
+    successMessage.value = res.data?.message || `Đã xóa vĩnh viễn bàn "${tableToDelete.value.tableName}" thành công!`;
+    showDeleteTableModal.value = false;
+    tableToDelete.value = null;
+    await loadTables();
+  } catch (e) {
+    errorMessage.value = e.response?.data?.message || 'Lỗi khi xóa bàn ăn.';
+  } finally {
+    isDeletingTable.value = false;
+  }
+}
+
+// Xử lý Đổi Tên Khu Vực
+function openRenameAreaModal(area) {
+  areaToRename.value = area;
+  newAreaNameInput.value = area;
+  showRenameAreaModal.value = true;
+}
+
+async function executeRenameArea() {
+  if (!newAreaNameInput.value || !newAreaNameInput.value.trim()) {
+    errorMessage.value = 'Vui lòng nhập tên khu vực mới!';
+    return;
+  }
+  if (newAreaNameInput.value.trim() === areaToRename.value) {
+    showRenameAreaModal.value = false;
+    return;
+  }
+  errorMessage.value = '';
+  successMessage.value = '';
+  isRenamingArea.value = true;
+
+  try {
+    const res = await axios.put(`${api}/area/rename`, {
+      oldAreaName: areaToRename.value,
+      newAreaName: newAreaNameInput.value.trim()
+    });
+    successMessage.value = res.data?.message || 'Đã đổi tên khu vực thành công!';
+    if (selectedArea.value === areaToRename.value) {
+      selectedArea.value = newAreaNameInput.value.trim();
+    }
+    showRenameAreaModal.value = false;
+    await loadTables();
+  } catch (e) {
+    errorMessage.value = e.response?.data?.message || 'Lỗi khi đổi tên khu vực.';
+  } finally {
+    isRenamingArea.value = false;
+  }
+}
+
+// Xử lý Xóa Khu Vực
+function openDeleteAreaModal(area) {
+  areaToDelete.value = area;
+  deleteAreaMode.value = 'transfer';
+  const otherAreas = uniqueAreas.value.filter(a => a !== area);
+  targetTransferArea.value = otherAreas.length > 0 ? otherAreas[0] : '';
+  showDeleteAreaModal.value = true;
+}
+
+async function executeDeleteArea() {
+  if (!areaToDelete.value) return;
+  errorMessage.value = '';
+  successMessage.value = '';
+  isDeletingArea.value = true;
+
+  try {
+    const params = {
+      areaName: areaToDelete.value
+    };
+    if (deleteAreaMode.value === 'transfer') {
+      if (!targetTransferArea.value) {
+        errorMessage.value = 'Vui lòng chọn khu vực đích để chuyển bàn sang!';
+        isDeletingArea.value = false;
+        return;
+      }
+      params.transferToArea = targetTransferArea.value;
+    } else {
+      params.deleteTables = true;
+    }
+
+    const res = await axios.delete(`${api}/area/delete`, { params });
+    successMessage.value = res.data?.message || `Đã xóa khu vực "${areaToDelete.value}" thành công!`;
+    if (selectedArea.value === areaToDelete.value) {
+      selectedArea.value = '';
+    }
+    showDeleteAreaModal.value = false;
+    await loadTables();
+  } catch (e) {
+    errorMessage.value = e.response?.data?.message || 'Lỗi khi xóa khu vực.';
+  } finally {
+    isDeletingArea.value = false;
+  }
+}
 
 async function loadTables() {
   errorMessage.value = '';

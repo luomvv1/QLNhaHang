@@ -24,8 +24,19 @@ INSERT INTO @DemoCostFix (BatchCode, OldUnitCost, CorrectUnitCost) VALUES
 ('NCD-202610-A', 120, 120000),
 ('GV-202610-A', 80, 80000);
 
+-- Lô hoàn bếp cũ kế thừa cùng đơn giá sai từ lô gốc của nguyên liệu.
+INSERT INTO @DemoCostFix (BatchCode, OldUnitCost, CorrectUnitCost)
+SELECT DISTINCT returned.BatchCode, fix.OldUnitCost, fix.CorrectUnitCost
+FROM dbo.InventoryBatches returned
+JOIN dbo.InventoryBatches source ON source.InventoryItemId = returned.InventoryItemId
+JOIN @DemoCostFix fix ON fix.BatchCode = source.BatchCode
+WHERE returned.BatchCode LIKE 'TH-BEP-%'
+  AND returned.UnitCost = fix.OldUnitCost
+  AND NOT EXISTS (SELECT 1 FROM @DemoCostFix existing WHERE existing.BatchCode = returned.BatchCode);
+
 BEGIN TRY
     BEGIN TRANSACTION;
+    DECLARE @AffectedReceiptIds TABLE (ReceiptId INT NOT NULL);
 
     UPDATE item
     SET item.CostPerUnit = fix.CorrectUnitCost,
@@ -53,12 +64,16 @@ BEGIN TRY
     SET detail.UnitCost = fix.CorrectUnitCost,
         detail.Subtotal = ROUND(
             CASE WHEN item.ConversionRate > 0
-                THEN (detail.Quantity / item.ConversionRate) * fix.CorrectUnitCost
-                ELSE detail.Quantity * fix.CorrectUnitCost
+                THEN ((CASE WHEN receipt.ReceiptType = 'import_supplier'
+                    THEN COALESCE(detail.GrossQuantity, detail.Quantity) ELSE detail.Quantity END) / item.ConversionRate) * fix.CorrectUnitCost
+                ELSE (CASE WHEN receipt.ReceiptType = 'import_supplier'
+                    THEN COALESCE(detail.GrossQuantity, detail.Quantity) ELSE detail.Quantity END) * fix.CorrectUnitCost
             END, 2)
+    OUTPUT inserted.ReceiptId INTO @AffectedReceiptIds (ReceiptId)
     FROM dbo.StockReceiptDetails detail
     JOIN dbo.InventoryItems item ON item.InventoryItemId = detail.InventoryItemId
     JOIN dbo.InventoryBatches batch ON batch.BatchId = detail.BatchId
+    JOIN dbo.StockReceipts receipt ON receipt.ReceiptId = detail.ReceiptId
     JOIN @DemoCostFix fix ON fix.BatchCode = batch.BatchCode
     WHERE detail.UnitCost = fix.OldUnitCost;
 
@@ -70,10 +85,12 @@ BEGIN TRY
     (
         SELECT detail.ReceiptId, SUM(detail.Subtotal) AS TotalAmount
         FROM dbo.StockReceiptDetails detail
-        WHERE EXISTS (SELECT 1 FROM @DemoCostFix fix WHERE fix.BatchCode IN
-            (SELECT batch.BatchCode FROM dbo.InventoryBatches batch WHERE batch.BatchId = detail.BatchId))
+        WHERE detail.ReceiptId IN (SELECT affected.ReceiptId FROM @AffectedReceiptIds affected)
         GROUP BY detail.ReceiptId
     ) totals ON totals.ReceiptId = receipt.ReceiptId;
+
+    SELECT (SELECT COUNT(*) FROM @AffectedReceiptIds) AS CorrectedReceiptLines,
+           (SELECT COUNT(DISTINCT ReceiptId) FROM @AffectedReceiptIds) AS CorrectedReceipts;
 
     COMMIT TRANSACTION;
 END TRY
@@ -81,7 +98,6 @@ BEGIN CATCH
     IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
     THROW;
 END CATCH;
-GO
 
 SELECT item.ItemName, item.PurchaseUnit, item.CostPerUnit,
        batch.BatchCode, batch.UnitCost AS BatchUnitCost,

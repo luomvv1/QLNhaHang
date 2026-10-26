@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
@@ -45,6 +46,7 @@ public class ReviewController : ControllerBase
     /// Lấy danh sách đánh giá công khai kèm số sao trung bình (Customer Portal)
     /// </summary>
     [HttpGet("list")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetPublicReviews([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
         var baseQuery = _dbContext.Reviews.Where(r => r.IsVisible);
@@ -99,6 +101,7 @@ public class ReviewController : ControllerBase
     /// Khách hàng gửi đánh giá mới
     /// </summary>
     [HttpPost("create")]
+    [Authorize(Roles = "customer")]
     public async Task<IActionResult> CreateReview([FromBody] CreateReviewRequest request)
     {
         if (request == null)
@@ -108,57 +111,12 @@ public class ReviewController : ControllerBase
             return BadRequest(new { success = false, message = "Điểm đánh giá phải từ 1 đến 5 sao." });
 
         var currentUserId = GetCurrentUserId();
-        Customer? customer = null;
-
-        if (currentUserId.HasValue)
-        {
-            customer = await _dbContext.Customers.FirstOrDefaultAsync(c => c.UserId == currentUserId.Value);
-        }
-
-        // Nếu khách vãng lai gửi tên/SĐT
-        if (customer == null && !string.IsNullOrWhiteSpace(request.CustomerPhone))
-        {
-            var phone = request.CustomerPhone.Trim();
-            customer = await _dbContext.Customers.FirstOrDefaultAsync(c => c.Phone == phone);
-            if (customer == null)
-            {
-                customer = new Customer
-                {
-                    FullName = string.IsNullOrWhiteSpace(request.CustomerName) ? "Khách trải nghiệm" : request.CustomerName.Trim(),
-                    Phone = phone,
-                    PointsBalance = 0,
-                    TotalSpent = 0,
-                    VisitCount = 1,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _dbContext.Customers.Add(customer);
-                await _dbContext.SaveChangesAsync();
-            }
-        }
-
-        if (customer == null)
-        {
-            // Tìm customer mặc định hoặc đầu tiên nếu không có thông tin
-            customer = await _dbContext.Customers.FirstOrDefaultAsync();
-            if (customer == null)
-            {
-                customer = new Customer
-                {
-                    FullName = "Thực khách Hương Sen",
-                    Phone = "0900000000",
-                    PointsBalance = 0,
-                    TotalSpent = 0,
-                    VisitCount = 1,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _dbContext.Customers.Add(customer);
-                await _dbContext.SaveChangesAsync();
-            }
-        }
+        var customer = await _dbContext.Customers.FirstOrDefaultAsync(c => c.UserId == currentUserId);
+        if (customer == null) return Forbid();
+        if (request.InvoiceId.HasValue && !await _dbContext.Invoices.AnyAsync(invoice =>
+            invoice.InvoiceId == request.InvoiceId && invoice.InvoiceStatus == "paid"
+            && (invoice.CustomerId == customer.CustomerId || invoice.Order.CustomerId == customer.CustomerId)))
+            return Forbid();
 
         var review = new Review
         {
@@ -188,6 +146,7 @@ public class ReviewController : ControllerBase
     // ==============================================================
 
     [HttpGet("admin/list")]
+    [Authorize(Roles = "admin,manager")]
     public async Task<IActionResult> GetAdminReviews(
         [FromQuery] byte? rating = null,
         [FromQuery] bool? isVisible = null,
@@ -239,6 +198,7 @@ public class ReviewController : ControllerBase
     }
 
     [HttpPost("admin/{id}/toggle-visibility")]
+    [Authorize(Roles = "admin,manager")]
     public async Task<IActionResult> ToggleVisibility(int id)
     {
         var review = await _dbContext.Reviews.FirstOrDefaultAsync(r => r.ReviewId == id);
@@ -258,6 +218,7 @@ public class ReviewController : ControllerBase
     }
 
     [HttpPost("admin/{id}/reply")]
+    [Authorize(Roles = "admin,manager")]
     public async Task<IActionResult> ReplyReview(int id, [FromBody] AdminReplyReviewRequest request)
     {
         var review = await _dbContext.Reviews.FirstOrDefaultAsync(r => r.ReviewId == id);

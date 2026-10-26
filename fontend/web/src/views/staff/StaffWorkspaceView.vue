@@ -79,8 +79,11 @@
           <router-link v-if="userRole === 'manager' || userRole === 'admin'" to="/admin" class="btn btn-outline-warning btn-sm fw-semibold">
             ⚙️ Về Quản Trị
           </router-link>
-          <router-link to="/chef" class="btn btn-outline-info btn-sm fw-semibold">
-            👨‍🍳 Sang Bếp
+          <router-link to="/chef" class="btn btn-outline-info btn-sm fw-semibold" :title="userRole === 'chef' ? 'Quay lại màn hình Bếp (KDS)' : 'Xem màn hình Bếp'">
+            👨‍🍳 {{ userRole === 'chef' ? 'Về Bếp' : 'Sang Bếp' }}
+          </router-link>
+          <router-link to="/customer/menu" target="_blank" class="btn btn-outline-light btn-sm fw-semibold" title="Xem Thực Đơn & Trang Khách Hàng">
+            📖 Trang Khách
           </router-link>
           <button class="btn btn-outline-info btn-sm fw-semibold position-relative" @click="openTodayReservationsModal" title="Xem danh sách khách đặt bàn hôm nay">
             📅 Bàn Đặt Hôm Nay
@@ -194,17 +197,11 @@
               <div v-if="table.activeOrder" class="bg-warning-subtle rounded p-2 text-dark small mb-2 border border-warning-subtle">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <span class="fw-bold">Đơn #{{ table.activeOrder.orderId }}</span>
-                  <span v-if="!table.activeOrder.isPrimary" class="badge bg-danger text-white" style="font-size: 0.65rem;">
-                    🔗 Ghép phụ
-                  </span>
-                  <span v-else-if="table.activeOrder.linkedTables && table.activeOrder.linkedTables.length > 0" class="badge bg-primary text-white" style="font-size: 0.65rem;">
+                  <span v-if="table.activeOrder.linkedTables && table.activeOrder.linkedTables.length > 0" class="badge bg-primary text-white" style="font-size: 0.65rem;">
                     +{{ table.activeOrder.linkedTables.length }} Bàn ghép
                   </span>
                 </div>
-                <div v-if="!table.activeOrder.isPrimary && table.activeOrder.primaryTableName" class="text-danger fw-semibold small mb-1">
-                  Ghép cùng: {{ table.activeOrder.primaryTableName }}
-                </div>
-                <div v-else-if="table.activeOrder.linkedTables && table.activeOrder.linkedTables.length > 0" class="text-primary fw-semibold small mb-1">
+                <div v-if="table.activeOrder.linkedTables && table.activeOrder.linkedTables.length > 0" class="text-primary fw-semibold small mb-1">
                   Ghép: {{ table.activeOrder.linkedTables.map(t => t.tableName).join(', ') }}
                 </div>
                 <!-- Cảnh báo có món đã nấu xong tại quầy cần bưng -->
@@ -307,16 +304,10 @@
                   {{ activeTable?.tableName }}
                 </h4>
                 <span
-                  v-if="currentOrder?.isPrimary && currentOrder?.linkedTables && currentOrder.linkedTables.length > 1"
+                  v-if="currentOrder?.linkedTables && currentOrder.linkedTables.length > 1"
                   class="badge bg-primary-subtle text-primary border border-primary-subtle"
                 >
                   ➕ Ghép: {{ currentOrder.linkedTables.filter(t => t.tableId !== activeTable?.tableId).map(t => t.tableName).join(', ') }}
-                </span>
-                <span
-                  v-if="currentOrder && !currentOrder.isPrimary"
-                  class="badge bg-danger-subtle text-danger border border-danger-subtle"
-                >
-                  🔗 Ghép phụ (cùng {{ currentOrder.linkedTables?.find(t => t.isPrimary)?.tableName || 'Bàn chính' }})
                 </span>
                 <span class="badge bg-light text-dark border">
                   📍 {{ activeTable?.areaName || 'Sảnh chung' }}
@@ -446,13 +437,13 @@
                         <div class="text-danger fw-bold small">
                           {{ formatCurrency(getFoodMinPrice(food)) }}
                         </div>
-                        <small class="text-muted d-block mt-1">
-                          {{ food.variants.length }} biến thể / size
+                        <small class="d-block mt-1" :class="food.canOrder === false ? 'text-danger' : 'text-muted'">
+                          {{ food.availabilityText || (food.canOrder === false ? 'Bếp tạm hết món' : `${food.variants.length} size`) }}
                         </small>
                       </div>
 
-                      <button class="btn btn-outline-primary btn-sm w-100 mt-2 fw-semibold">
-                        + Chọn món
+                      <button class="btn btn-outline-primary btn-sm w-100 mt-2 fw-semibold" :disabled="food.canOrder === false">
+                        {{ food.canOrder === false ? (food.availabilityText || 'Hết món') : '+ Chọn món' }}
                       </button>
                     </div>
                   </div>
@@ -505,7 +496,7 @@
                     </div>
                     <div class="text-end">
                       <span class="fw-bold text-danger">
-                        {{ formatCurrency(item.LineTotal) }}
+                        {{ formatCurrency(item.ItemStatus === 'cancelled' ? 0 : item.LineTotal) }}
                       </span>
                     </div>
                   </div>
@@ -516,6 +507,7 @@
                   </div>
 
                   <!-- Dòng điều khiển số lượng & Trạng thái món -->
+                  <p v-if="item.CancellationReason" class="small text-danger mb-1">Đã hủy: {{ item.CancellationReason }}</p>
                   <div class="d-flex justify-content-between align-items-center mt-2">
                     <!-- Trạng thái món -->
                     <div>
@@ -552,6 +544,7 @@
 
                       <!-- Nếu món đã gửi bếp -> Không được tự giảm -->
                       <template v-else>
+                        <button v-if="canCancelItem(item)" class="btn btn-outline-danger btn-sm" @click="cancelSentItem(item)">Hủy món</button>
                         <span class="badge bg-light text-dark border px-2 py-1">
                           Số lượng: <strong>{{ item.Quantity }}</strong>
                         </span>
@@ -636,19 +629,19 @@
             <!-- 1. Chọn biến thể size -->
             <label class="form-label fw-bold">1. Chọn kích cỡ / biến thể:</label>
             <div class="d-grid gap-2 mb-3">
-              <div
+              <button type="button"
                 v-for="v in selectedFood?.variants"
                 :key="v.variantId"
                 class="p-2 border rounded cursor-pointer transition d-flex justify-content-between align-items-center"
                 :class="selectedVariantId === v.variantId ? 'border-primary bg-primary-subtle fw-bold' : 'border-light-subtle'"
-                @click="selectedVariantId = v.variantId"
+                :disabled="v.canOrder === false" @click="selectedVariantId = v.variantId"
               >
                 <div>
-                  <span>{{ v.variantName }}</span>
+                  <span>{{ v.variantName }}<small class="d-block" :class="v.canOrder === false ? 'text-danger' : 'text-muted'">{{ v.availabilityText || (v.canOrder === false ? 'Bếp tạm hết món' : '') }}</small></span>
                   <small class="text-muted ms-1">({{ v.unit }})</small>
                 </div>
                 <span class="text-danger">{{ formatCurrency(v.price) }}</span>
-              </div>
+              </button>
             </div>
 
             <!-- 2. Chọn số lượng -->
@@ -687,7 +680,7 @@
             <button class="btn btn-light" @click="showVariantModal = false">Hủy</button>
             <button
               class="btn btn-primary fw-bold px-4"
-              :disabled="!selectedVariantId || selectedQty < 1"
+              :disabled="!selectedVariantId || selectedQty < 1 || selectedFood?.canOrder === false || !selectedFood?.variants?.some(v => v.variantId === selectedVariantId && v.canOrder !== false)"
               @click="confirmAddItemToOrder"
             >
               Thêm vào đơn hàng
@@ -822,11 +815,17 @@
       :show="showTodayReservationsModal"
       @close="showTodayReservationsModal = false"
       @check-in="checkInReservationAndOpenOrder"
+      @table-assigned="loadTables"
     />
   </div>
+  <OperationalReasonDialog :dialog="reasonDialog" />
 </template>
 
 <script setup>
+import OperationalReasonDialog from '@/components/OperationalReasonDialog.vue';
+import { useReasonDialog } from '@/composables/useReasonDialog';
+const { reasonDialog, askReason } = useReasonDialog();
+import { clearSession } from '@/auth/session';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
@@ -840,8 +839,8 @@ import StaffRecentInvoicesModal from './components/StaffRecentInvoicesModal.vue'
 import StaffTodayReservationsModal from './components/StaffTodayReservationsModal.vue';
 
 const router = useRouter();
-const apiBase = 'http://localhost:5079/api/staff/orders';
-const paymentApiBase = 'http://localhost:5079/api/staff/payment';
+const apiBase = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/staff/orders`;
+const paymentApiBase = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/staff/payment`;
 
 // ==============================================================
 // 1. DỮ LIỆU USER & ĐIỀU HƯỚNG
@@ -959,12 +958,13 @@ const pendingItemsCount = computed(() => {
 });
 
 const totalItemQuantity = computed(() => {
-  return orderItems.value.reduce((sum, i) => sum + i.Quantity, 0);
+  return orderItems.value.filter(i => i.ItemStatus !== 'cancelled').reduce((sum, i) => sum + i.Quantity, 0);
 });
 
 const canCancelOrder = computed(() => {
   if (!currentOrder.value) return false;
-  return !orderItems.value.some(i => ['cooking', 'ready', 'served'].includes(i.ItemStatus));
+  return !orderItems.value.some(i => i.ItemStatus !== 'cancelled' &&
+    (i.CanCancel === false || ['cooking', 'ready', 'served'].includes(i.ItemStatus)));
 });
 
 const todayReservationsPendingCount = computed(() => 
@@ -975,6 +975,8 @@ const todayReservationsPendingCount = computed(() =>
 // 6. LIFECYCLE & SIGNALR REALTIME
 // ==============================================================
 onMounted(async () => {
+  signalRService.on('FoodAvailabilityChanged', loadMenu);
+  signalRService.on('PortionAvailabilityChanged', loadMenu);
   await Promise.all([loadTables(), loadMenu(), loadTodayReservations()]);
 
   // Lắng nghe sự kiện Order/Bếp cập nhật
@@ -1004,6 +1006,12 @@ onMounted(async () => {
 
   // LẮNG NGHE CHUYỂN KHOẢN NGÂN HÀNG THÀNH CÔNG (REALTIME WEBHOOK)
   signalRService.on('PaymentReceived', async (data) => {
+    // Nếu checkout modal đang mở cho đơn hàng này, modal sẽ tự phát âm ting ting và hiển thị Tick xanh cỡ lớn rồi emit @success
+    if (showCheckoutModal.value && currentOrder.value?.orderId === data.orderId) {
+      await loadTablesSilently();
+      return;
+    }
+
     playCashChime();
     completedInvoice.value = data.invoice;
     showCheckoutModal.value = false;
@@ -1032,6 +1040,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  signalRService.off('FoodAvailabilityChanged', loadMenu);
+  signalRService.off('PortionAvailabilityChanged', loadMenu);
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   signalRService.off('StaffOrderUpdated');
   signalRService.off('KitchenUpdated');
@@ -1068,6 +1078,10 @@ async function loadMenu() {
     const res = await axios.get(`${apiBase}/menu`);
     menuCategories.value = res.data?.categories ?? [];
     menuFoods.value = res.data?.foods ?? [];
+    if (selectedFood.value) {
+      selectedFood.value = menuFoods.value.find(f => f.foodId === selectedFood.value.foodId) || null;
+      if (!selectedFood.value) showVariantModal.value = false;
+    }
   } catch (err) {
     console.error('Lỗi khi tải thực đơn:', err);
   }
@@ -1131,7 +1145,9 @@ async function loadCurrentTableOrder() {
       Quantity: i.quantity,
       LineTotal: i.lineTotal,
       Note: i.note,
-      ItemStatus: i.itemStatus
+      ItemStatus: i.itemStatus,
+      CancellationReason: i.cancellationReason,
+      CanCancel: i.canCancel
     }));
   } catch (err) {
     errorMsg.value = err.response?.data?.message ?? 'Lỗi khi tải chi tiết bàn.';
@@ -1144,6 +1160,13 @@ async function loadCurrentTableOrderSilently() {
     const res = await axios.get(`${apiBase}/table/${activeTable.value.tableId}`);
     if (res.data) {
       if (res.data.table) activeTable.value = res.data.table;
+      if (!res.data.order) {
+        currentOrder.value = null;
+        orderItems.value = [];
+        viewMode.value = 'tables';
+        await loadTablesSilently();
+        return;
+      }
       if (res.data.order) {
         currentOrder.value = res.data.order;
         const serverItems = (res.data.order.items ?? []).map(i => ({
@@ -1156,7 +1179,9 @@ async function loadCurrentTableOrderSilently() {
           Quantity: i.quantity,
           LineTotal: i.lineTotal,
           Note: i.note,
-          ItemStatus: i.itemStatus
+          ItemStatus: i.itemStatus,
+          CancellationReason: i.cancellationReason,
+          CanCancel: i.canCancel
         }));
         const localPending = orderItems.value.filter(i => i.ItemStatus === 'pending' && !i.orderItemId);
         orderItems.value = [...serverItems, ...localPending];
@@ -1169,14 +1194,17 @@ async function loadCurrentTableOrderSilently() {
 // 8. TÁC VỤ GỌI MÓN (ORDER ITEMS)
 // ==============================================================
 function openSelectVariantModal(food) {
+  if (food.canOrder === false) return;
   selectedFood.value = food;
-  selectedVariantId.value = food.variants[0]?.variantId ?? null;
+  selectedVariantId.value = food.variants.find(v => v.canOrder !== false)?.variantId ?? null;
   selectedQty.value = 1;
   itemNote.value = '';
   showVariantModal.value = true;
 }
 
 async function confirmAddItemToOrder() {
+  if (!selectedFood.value || selectedFood.value.canOrder === false ||
+      !selectedFood.value.variants?.some(v => v.variantId === selectedVariantId.value && v.canOrder !== false)) return;
   if (!currentOrder.value) return;
   try {
     const res = await axios.post(`${apiBase}/${currentOrder.value.orderId}/items`, {
@@ -1229,13 +1257,29 @@ async function confirmOrderToKitchen() {
   }
 }
 
+function canCancelItem(item) {
+  return item.ItemStatus === 'confirmed' && item.CanCancel !== false;
+}
+
+async function cancelSentItem(item) {
+  const reason = await askReason('Hủy món đã gửi bếp', `${item.foodNameSnapshot} · ${item.variantSnapshot}`, 'Hủy món');
+  if (!reason || !currentOrder.value) return;
+  try {
+    const res = await axios.post(`${apiBase}/${currentOrder.value.orderId}/items/${item.orderItemId}/cancel`, { reason });
+    successMsg.value = res.data.message;
+    await loadCurrentTableOrder();
+  } catch (err) { errorMsg.value = err.response?.data?.message || 'Không thể hủy món.'; }
+}
+
 async function cancelCurrentOrder() {
   if (!currentOrder.value) return;
-  if (!confirm(`Bạn có chắc muốn HỦY đơn hàng #${currentOrder.value.orderId} của bàn ${activeTable.value.tableName} không?`)) return;
+  const reason = await askReason('Hủy toàn bộ đơn hàng', `Order #${currentOrder.value.orderId} · ${activeTable.value.tableName}`, 'Hủy đơn');
+  if (!reason) return;
   try {
-    const res = await axios.post(`${apiBase}/${currentOrder.value.orderId}/cancel`);
+    const res = await axios.post(`${apiBase}/${currentOrder.value.orderId}/cancel`, { reason });
     successMsg.value = res.data?.message ?? 'Đã hủy đơn hàng thành công.';
     await Promise.all([loadTables(), loadCurrentTableOrder()]);
+    viewMode.value = 'tables';
   } catch (err) {
     errorMsg.value = err.response?.data?.message ?? 'Không thể hủy đơn hàng.';
   }
@@ -1372,7 +1416,7 @@ async function loadTodayReservations() {
   isLoadingTodayReservations.value = true;
   try {
     const today = new Date().toISOString().split('T')[0];
-    const res = await axios.get('http://localhost:5079/api/admin/reservations', {
+    const res = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations`, {
       params: { date: today }
     });
     if (res.data?.success) {
@@ -1415,7 +1459,7 @@ async function checkInReservationAndOpenOrder(res) {
   }
 
   try {
-    const resp = await axios.post(`http://localhost:5079/api/admin/reservations/${res.reservationId}/check-in`);
+    const resp = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/reservations/${res.reservationId}/check-in`);
 
     if (resp.data?.success) {
       showTodayReservationsModal.value = false;
@@ -1513,7 +1557,7 @@ function getItemStatusText(status) {
 }
 
 function handleLogout() {
-  localStorage.clear();
+  clearSession();
   router.push('/login');
 }
 </script>

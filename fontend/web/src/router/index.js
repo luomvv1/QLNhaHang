@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { routeAccess } from '../auth/access.mjs'
+import { validatedSession } from '../auth/session'
 
 // 1. Auth Actor
 import LoginView from '../views/auth/LoginView.vue'
@@ -38,6 +40,7 @@ const router = createRouter({
     { path: '/intro', redirect: '/customer/intro' },
     { path: '/area', redirect: '/customer/area' },
     { path: '/menu', redirect: '/customer/menu' },
+    { path: '/news', redirect: '/customer/news' },
     { path: '/reservation', redirect: '/customer/reservation' },
     { path: '/contact', redirect: '/customer/contact' },
     { path: '/profile', redirect: '/customer/profile' },
@@ -50,17 +53,21 @@ const router = createRouter({
       meta: { roles: ['admin', 'manager'] },
       children: [
         { path: '', name: 'admin-dashboard', component: AdminDashboardView },
+        { path: 'reports', name: 'admin-reports', component: () => import('../views/admin/reports/AdminReportsView.vue') },
         { path: 'categories', name: 'admin-categories', component: CategoryManagementView },
         { path: 'foods', name: 'admin-foods', component: FoodManagementView },
         { path: 'tables', name: 'admin-tables', component: TableManagementView },
         { path: 'reservations', name: 'admin-reservations', component: ReservationManagementView },
-        { path: 'users', name: 'admin-users', component: UserManagementView },
-        { path: 'payment-settings', name: 'admin-payment-settings', component: PaymentSettingsView },
+        { path: 'users', name: 'admin-users', component: UserManagementView, meta: { roles: ['admin'] } },
+        { path: 'payment-settings', name: 'admin-payment-settings', component: PaymentSettingsView, meta: { roles: ['admin'] } },
         { path: 'inventory', name: 'admin-inventory', component: InventoryManagementView },
         { path: 'daily-portions', name: 'admin-daily-portions', component: DailyPortionsView },
         { path: 'stock-receipts', name: 'admin-stock-receipts', component: StockReceiptsView },
         { path: 'kitchen-reconciliation', name: 'admin-kitchen-reconciliation', component: KitchenReconciliationView },
+        { path: 'kitchen-decisions', name: 'admin-kitchen-decisions', component: () => import('../views/admin/kitchen/KitchenDecisionsHistoryView.vue') },
+        { path: 'audit-logs', name: 'admin-audit-logs', component: () => import('../views/admin/audit/RestaurantAuditLogsView.vue') },
         { path: 'reviews', name: 'admin-reviews', component: ReviewManagementView },
+        { path: 'crm-promotions', name: 'admin-crm-promotions', component: () => import('../views/admin/crm/CustomerPromotionManagementView.vue') },
       ]
     },
 
@@ -69,7 +76,7 @@ const router = createRouter({
       path: '/staff',
       name: 'staff',
       component: StaffWorkspaceView,
-      meta: { roles: ['staff', 'admin', 'manager'] }
+      meta: { roles: ['staff', 'chef', 'admin', 'manager'] }
     },
 
     // Staff / Waiter Mobile App Route (Smart POS Handheld App)
@@ -77,7 +84,7 @@ const router = createRouter({
       path: '/staff/app',
       name: 'staff-app',
       component: StaffAppView,
-      meta: { roles: ['staff', 'admin', 'manager'] }
+      meta: { roles: ['staff', 'chef', 'admin', 'manager'] }
     },
 
     // Chef / Kitchen Route
@@ -98,56 +105,21 @@ const router = createRouter({
         { path: 'intro',        meta: { public: true }, component: () => import('../views/customer/IntroView.vue') },
         { path: 'area',         meta: { public: true }, component: () => import('../views/customer/AreaView.vue') },
         { path: 'menu',         meta: { public: true }, component: () => import('../views/customer/MenuView.vue') },
+        { path: 'news',         meta: { public: true }, component: () => import('../views/customer/NewsView.vue') },
         { path: 'reservation',  meta: { public: true }, component: () => import('../views/customer/ReservationView.vue') },
         { path: 'contact',      meta: { public: true }, component: () => import('../views/customer/ContactView.vue') },
-        { path: 'profile',      meta: { public: true }, component: () => import('../views/customer/ProfileView.vue') },
-        { path: 'account',      meta: { requiresAuth: true }, component: () => import('../views/customer/CustomerAccountView.vue') },
+        { path: 'profile',      meta: { requiresAuth: true, roles: ['customer', 'staff', 'chef', 'admin', 'manager'] }, component: () => import('../views/customer/ProfileView.vue') },
+        { path: 'account',      meta: { requiresAuth: true, roles: ['customer', 'staff', 'chef', 'admin', 'manager'] }, component: () => import('../views/customer/CustomerAccountView.vue') },
       ]
     },
   ]
 })
 
 // Authentication & Role-based Navigation Guard (Vue Router 4 return syntax)
-router.beforeEach((to) => {
-  const token = localStorage.getItem('token');
-  const role = (localStorage.getItem('role') || '').toLowerCase();
-
-  // The account dashboard contains private data and must be checked before
-  // the public parent layout is considered.
-  if (to.meta.requiresAuth && !token) {
-    return { name: 'login', query: { redirect: to.fullPath } };
-  }
-
-  // 1. Allow public customer routes without authentication
-  if (to.meta.public || to.matched.some(r => r.meta?.public)) {
-    return true;
-  }
-
-  // 2. Handling Login Route
-  if (to.name === 'login') {
-    if (!token) return true;
-    // Already authenticated -> redirect to their role home
-    if (role === 'chef') return '/chef';
-    if (role === 'staff') return '/staff';
-    if (role === 'customer') return '/customer/intro';
-    return '/admin';
-  }
-
-  // 3. Protected routes require token
-  if (!token) {
-    return { name: 'login' };
-  }
-
-  // 4. Role authorization check
-  const requiredRoles = to.meta.roles || to.matched.find(r => r.meta?.roles)?.meta?.roles;
-  if (requiredRoles && role && !requiredRoles.includes(role)) {
-    if (role === 'chef') return '/chef';
-    if (role === 'staff') return '/staff';
-    if (role === 'customer') return '/customer/intro';
-    return '/admin';
-  }
-
-  return true;
+router.beforeEach(async (to) => {
+  const protectedRoute = to.meta.requiresAuth || to.matched.some(record => record.meta?.roles);
+  if (!protectedRoute && to.name !== 'login') return true;
+  return routeAccess(to, await validatedSession());
 });
 
 export default router

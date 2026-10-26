@@ -258,6 +258,7 @@ public partial class RestaurantDbContext : DbContext
 
         modelBuilder.Entity<FoodVariant>(entity =>
         {
+            entity.Property(e => e.IsSoldOut).HasDefaultValue(false);
             entity.HasKey(e => e.VariantId);
 
             entity.HasIndex(e => new { e.FoodId, e.IsActive }, "IX_FoodVariants_Food_Active");
@@ -365,6 +366,7 @@ public partial class RestaurantDbContext : DbContext
 
         modelBuilder.Entity<Order>(entity =>
         {
+            entity.Property(e => e.CancellationReason).HasMaxLength(500);
             entity.HasIndex(e => new { e.OrderStatus, e.CreatedAt }, "IX_Orders_Status_CreatedAt").IsDescending(false, true);
 
             entity.Property(e => e.CancelledAt).HasPrecision(0);
@@ -400,6 +402,10 @@ public partial class RestaurantDbContext : DbContext
 
         modelBuilder.Entity<OrderItem>(entity =>
         {
+            entity.Property(e => e.PortionDate).HasColumnType("date");
+            entity.Property(e => e.CancelledAt).HasPrecision(0);
+            entity.Property(e => e.CancellationReason).HasMaxLength(500);
+            entity.Property(e => e.CancelledFromStatus).HasMaxLength(20).IsUnicode(false);
             entity.HasIndex(e => new { e.OrderId, e.ItemStatus }, "IX_OrderItems_Order_Status");
 
             entity.Property(e => e.ConfirmedAt).HasPrecision(0);

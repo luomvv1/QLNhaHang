@@ -1,44 +1,40 @@
 <template>
+  <InventoryWorkspaceNav />
   <div class="inventory-container">
     <!-- Header Page Banner -->
-    <div class="card-modern p-4 mb-4 text-white position-relative overflow-hidden" 
-         style="background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%);">
+    <header class="inventory-page-header">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 position-relative" style="z-index: 2;">
         <div>
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-warning text-dark px-3 py-1 fw-bold">WMS & BOM</span>
-            <span class="badge bg-success-subtle text-white border border-light border-opacity-25 px-2 py-1">PHẦN 1: NGUYÊN LIỆU & ĐỊNH LƯỢNG MÓN</span>
-          </div>
-          <h2 class="fw-bold mb-1">📦 Quản Lý Kho & Định Lượng Suất Ăn</h2>
-          <p class="text-white-50 mb-0">Quản lý nguyên liệu linh hoạt (đơn vị đơn hoặc quy đổi mua/gốc), Lô hàng gom nhóm theo món/nguyên liệu chuẩn FEFO & Định mức BOM theo Size.</p>
+          <div class="inventory-eyebrow">QUẢN LÝ KHO</div>
+          <h1>Nguyên liệu &amp; lô hàng</h1>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          <router-link to="/admin/stock-receipts" class="btn btn-outline-light fw-bold d-flex align-items-center gap-2 text-decoration-none">
-            <span aria-hidden="true">≡</span>
-            <span>Nhập nhiều nguyên liệu</span>
+          <router-link to="/admin/stock-receipts" class="btn btn-outline-secondary d-flex align-items-center gap-2 text-decoration-none">
+            <ClipboardList :size="17" aria-hidden="true" />
+            <span>Lập phiếu nhập</span>
           </router-link>
-          <button class="btn btn-warning fw-bold d-flex align-items-center gap-2 shadow-sm" @click="openCreateBatchModal()">
-            <span>🏷️</span>
-            <span>Nhập nhanh 1 nguyên liệu</span>
+          <button class="btn btn-outline-secondary d-flex align-items-center gap-2" @click="openCreateBatchModal()">
+            <PackagePlus :size="17" aria-hidden="true" />
+            <span>Nhập nhanh</span>
           </button>
-          <button class="btn btn-light fw-bold d-flex align-items-center gap-2 shadow-sm" @click="openItemModal()">
-            <span>➕</span>
-            <span>Thêm Nguyên Liệu</span>
+          <button class="btn btn-success d-flex align-items-center gap-2" @click="openItemModal()">
+            <Plus :size="17" aria-hidden="true" />
+            <span>Thêm nguyên liệu</span>
           </button>
         </div>
       </div>
-    </div>
+    </header>
 
     <!-- 4 KPI Summary Cards -->
-    <div class="row g-3 mb-4">
-      <div class="col-sm-6 col-xl-3">
+    <div class="row g-2 g-lg-3 mb-3 inventory-kpis">
+      <div class="col-6 col-xl-3">
         <div class="card-modern p-3 h-100">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
               <span class="text-muted small fw-semibold text-uppercase">Mặt Hàng Nguyên Liệu</span>
               <h3 class="fw-bold text-dark mt-1 mb-0">{{ summary.totalItems }}</h3>
             </div>
-            <div class="stat-badge bg-primary-subtle text-primary">📦</div>
+            <div class="stat-badge bg-primary-subtle text-primary"><Boxes :size="20" /></div>
           </div>
           <div class="small text-muted pt-2 border-top d-flex justify-content-between">
             <span>Đang quản lý</span>
@@ -47,7 +43,7 @@
         </div>
       </div>
 
-      <div class="col-sm-6 col-xl-3">
+      <div class="col-6 col-xl-3">
         <div class="card-modern p-3 h-100" :class="{ 'border-danger border': summary.lowStockCount > 0 }">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
@@ -57,7 +53,7 @@
               </h3>
             </div>
             <div class="stat-badge" :class="summary.lowStockCount > 0 ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'">
-              ⚠️
+              <TriangleAlert :size="20" />
             </div>
           </div>
           <div class="small pt-2 border-top d-flex justify-content-between align-items-center">
@@ -69,7 +65,7 @@
         </div>
       </div>
 
-      <div class="col-sm-6 col-xl-3">
+      <div class="col-6 col-xl-3">
         <div class="card-modern p-3 h-100" :class="{ 'border-warning border': summary.expiringBatchesCount > 0 }">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
@@ -78,7 +74,7 @@
                 {{ summary.expiringBatchesCount }}
               </h3>
             </div>
-            <div class="stat-badge bg-warning-subtle text-warning">⏳</div>
+            <div class="stat-badge bg-warning-subtle text-warning"><Clock3 :size="20" /></div>
           </div>
           <div class="small pt-2 border-top d-flex justify-content-between align-items-center">
             <span class="text-muted">Sắp hết hạn: {{ summary.expiringBatchesCount }} · <span class="text-danger fw-bold">Quá hạn: {{ summary.expiredBatchesCount || 0 }}</span></span>
@@ -92,14 +88,14 @@
         </div>
       </div>
 
-      <div class="col-sm-6 col-xl-3">
+      <div class="col-6 col-xl-3">
         <div class="card-modern p-3 h-100">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
               <span class="text-muted small fw-semibold text-uppercase">Tổng Giá Trị Kho</span>
-              <h3 class="fw-bold text-success mt-1 mb-0">{{ formatCurrency(summary.totalValue) }}</h3>
+              <h3 class="fw-bold text-success mt-1 mb-0" :title="formatCurrency(summary.totalValue)">{{ formatCompactCurrency(summary.totalValue) }}</h3>
             </div>
-            <div class="stat-badge bg-success-subtle text-success">💰</div>
+            <div class="stat-badge bg-success-subtle text-success"><Wallet :size="20" /></div>
           </div>
           <div class="small text-muted pt-2 border-top d-flex justify-content-between">
             <span>Theo giá mua, tồn quy đổi theo đơn vị gốc</span>
@@ -109,32 +105,72 @@
       </div>
     </div>
 
+    <section class="warehouse-overview" aria-labelledby="warehouse-overview-title">
+      <header class="warehouse-overview-head">
+        <div><span class="inventory-eyebrow">VIỆC CẦN THEO DÕI</span><h2 id="warehouse-overview-title">Tổng quan vận hành kho</h2><p>Giá trị theo lô còn dùng được; xuất bếp là chi phí cấp phát, không phải doanh thu.</p></div>
+        <router-link class="warehouse-report-link" to="/admin/reports?tab=inventory">Xem báo cáo xuất nhập tồn →</router-link>
+      </header>
+      <div class="warehouse-overview-grid">
+        <article class="warehouse-overview-card warehouse-action-card">
+          <div class="warehouse-card-heading"><h3>Cần xử lý</h3><span>{{ summary.lowStockCount + summary.expiredBatchesCount + (summary.pendingReceiptCount || 0) }} việc</span></div>
+          <button type="button" class="warehouse-action-row" @click="filterOnlyLowStock"><span>Nguyên liệu thiếu tồn dùng được</span><strong>{{ summary.lowStockCount }}</strong></button>
+          <button type="button" class="warehouse-action-row" @click="filterExpiredBatches"><span>Lô quá hạn còn tồn</span><strong>{{ summary.expiredBatchesCount || 0 }}</strong></button>
+          <router-link class="warehouse-action-row" to="/admin/stock-receipts?status=draft"><span>Phiếu chờ duyệt</span><strong>{{ summary.pendingReceiptCount || 0 }}</strong></router-link>
+          <div v-if="urgentItems.length" class="warehouse-low-list">
+            <span class="warehouse-subtitle">Cần nhập trước</span>
+            <button v-for="item in urgentItems" :key="item.inventoryItemId" type="button" @click="focusLowStockItem(item)"><span>{{ item.itemName }}</span><strong>{{ formatQuantity(item.availableQuantity) }} / {{ formatQuantity(item.minimumQuantity) }} {{ item.baseUnit }}</strong></button>
+          </div>
+          <p v-else class="warehouse-quiet">Chưa có nguyên liệu dưới mức tối thiểu.</p>
+        </article>
+        <article class="warehouse-overview-card warehouse-flow-card">
+          <div class="warehouse-card-heading"><div><h3>Giá vốn nhập và xuất bếp</h3><small>Sáu tháng gần nhất · theo ngày ghi biến động kho</small></div></div>
+          <div class="warehouse-flow-legend"><span><i class="flow-import"></i> Nhập mua</span><span><i class="flow-export"></i> Xuất bếp</span></div>
+          <div class="warehouse-flow-chart" role="img" aria-label="Biểu đồ giá vốn nhập mua và xuất bếp trong sáu tháng">
+            <div v-for="month in summary.monthlyStockFlow || []" :key="month.month" class="warehouse-flow-month">
+              <div class="warehouse-flow-bars"><div class="warehouse-flow-bar flow-import" :style="{ height: flowHeight(month.importValue) }" :title="`Nhập mua ${formatCurrency(month.importValue)}`"></div><div class="warehouse-flow-bar flow-export" :style="{ height: flowHeight(month.exportValue) }" :title="`Xuất bếp ${formatCurrency(month.exportValue)}`"></div></div>
+              <span>{{ flowMonthLabel(month.month) }}</span>
+            </div>
+          </div>
+          <p v-if="flowMissingCostCount" class="warehouse-data-note">{{ flowMissingCostCount }} biến động chưa có giá vốn; biểu đồ chỉ cộng các dòng có giá.</p>
+          <p v-else class="warehouse-data-note">Lô hoàn và hàng hủy được theo dõi riêng trong báo cáo kho.</p>
+        </article>
+        <article class="warehouse-overview-card warehouse-activity-card">
+          <div class="warehouse-card-heading"><h3>Phiếu gần đây</h3><router-link to="/admin/stock-receipts">Xem tất cả</router-link></div>
+          <div v-if="summary.recentReceipts?.length" class="warehouse-receipt-list">
+            <router-link v-for="receipt in summary.recentReceipts" :key="receipt.receiptId" :to="`/admin/stock-receipts?receiptId=${receipt.receiptId}`">
+              <span><strong>{{ receipt.receiptCode }}</strong><small>{{ receiptTypeLabel(receipt.receiptType) }} · {{ formatDate(receipt.createdAt) }}</small></span>
+              <em :class="receipt.status === 'draft' ? 'warehouse-pending' : receipt.status === 'approved' ? 'warehouse-approved' : ''">{{ receiptStatusLabel(receipt.status) }}</em>
+            </router-link>
+          </div>
+          <p v-else class="warehouse-quiet">Chưa có phiếu kho.</p>
+          <div v-if="summary.topIssuedItems?.length" class="warehouse-top-issued"><span class="warehouse-subtitle">Xuất bếp nhiều giá trị nhất · 30 ngày</span><div v-for="item in summary.topIssuedItems.slice(0, 3)" :key="item.inventoryItemId"><span>{{ item.itemName }}<small>{{ formatQuantity(item.quantity) }} {{ item.baseUnit }}</small></span><strong>{{ formatCurrency(item.costValue) }}</strong></div></div>
+        </article>
+      </div>
+    </section>
+
     <!-- Main Navigation Tabs -->
-    <div class="card-modern overflow-hidden mb-4">
-      <div class="p-2 border-bottom bg-light d-flex flex-wrap align-items-center justify-content-between gap-2">
-        <div class="d-flex flex-wrap gap-2">
+    <div class="inventory-surface overflow-hidden mb-4">
+      <div class="p-2 border-bottom bg-light d-flex flex-wrap align-items-center justify-content-between gap-2 inventory-tabs-bar">
+        <div class="d-flex flex-wrap gap-2 inventory-tabs-list">
           <button class="btn nav-tab-btn" :class="{ 'active': activeTab === 'items' }" @click="activeTab = 'items'">
-            📦 Tồn Kho Nguyên Liệu
+            <Boxes :size="17" /> Tồn kho nguyên liệu
             <span v-if="summary.lowStockCount > 0" class="badge bg-danger rounded-pill ms-1">{{ summary.lowStockCount }}</span>
           </button>
           <button class="btn nav-tab-btn" :class="{ 'active': activeTab === 'batches' }" @click="activeTab = 'batches'">
-            🏷️ Lô Hàng & Hạn Dùng (FEFO)
+            <Tags :size="17" /> Lô hàng & hạn dùng
             <span v-if="summary.expiringBatchesCount > 0" class="badge bg-warning text-dark rounded-pill ms-1">{{ summary.expiringBatchesCount }}</span>
             <span v-if="summary.expiredBatchesCount > 0" class="badge bg-danger rounded-pill ms-1">{{ summary.expiredBatchesCount }} quá hạn</span>
           </button>
           <button class="btn nav-tab-btn" :class="{ 'active': activeTab === 'recipes' }" @click="activeTab = 'recipes'">
-            🥗 Định Mức Suất Ăn (BOM)
+            <Utensils :size="17" /> Định mức món
           </button>
           <button class="btn nav-tab-btn" :class="{ 'active': activeTab === 'suppliers' }" @click="activeTab = 'suppliers'">
-            🚚 Nhà Cung Cấp
+            <Truck :size="17" /> Nhà cung cấp
           </button>
         </div>
 
         <!-- Roadmap Navigation Link -->
         <div class="d-flex gap-2 align-items-center small pe-2">
-          <router-link to="/admin/daily-portions" class="btn btn-sm btn-outline-primary fw-bold text-decoration-none">
-            🍲 Sang Điều Phối Suất Ăn &rarr;
-          </router-link>
         </div>
       </div>
 
@@ -143,99 +179,84 @@
       <!-- ========================================================================= -->
       <div v-if="activeTab === 'items'" class="p-3 p-md-4">
         <!-- Filter Controls -->
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-          <div class="d-flex flex-wrap gap-2 flex-grow-1" style="max-width: 700px;">
-            <input 
-              v-model="itemSearch" 
-              type="text" 
-              class="form-control form-control-sm" 
-              placeholder="🔍 Tìm theo tên nguyên liệu, đơn vị tính..."
-              style="max-width: 320px;"
-            />
-            <select v-model="selectedSupplierFilter" class="form-select form-select-sm" style="max-width: 200px;">
+        <div class="inventory-filter-bar mb-2">
+          <label class="inventory-filter-field inventory-search-field">
+            <span>Tìm nguyên liệu</span>
+            <input v-model.trim="itemSearch" type="search" class="form-control" placeholder="Tên, đơn vị hoặc nhà cung cấp" />
+          </label>
+          <label class="inventory-filter-field">
+            <span>Nhà cung cấp mặc định</span>
+            <select v-model="selectedSupplierFilter" class="form-select">
               <option value="">Tất cả nhà cung cấp</option>
               <option v-for="sup in suppliers" :key="sup.supplierId" :value="sup.supplierId">
                 {{ sup.supplierName }}
               </option>
             </select>
-            <div class="form-check form-switch d-flex align-items-center gap-2 m-0 ps-4">
-              <input class="form-check-input" type="checkbox" id="lowStockToggle" v-model="onlyLowStockFilter" />
-              <label class="form-check-label small fw-bold text-danger" for="lowStockToggle">
-                Chỉ hiện sắp hết
-              </label>
-            </div>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-secondary" @click="fetchInventoryData">
-              🔄 Làm mới
-            </button>
-            <button class="btn btn-sm btn-success fw-bold" @click="openItemModal()">
-              ➕ Thêm Nguyên Liệu
-            </button>
-          </div>
+          </label>
+          <label class="inventory-filter-field">
+            <span>Tình trạng tồn</span>
+            <select v-model="itemStockFilter" class="form-select">
+              <option value="all">Tất cả</option>
+              <option value="low">Thiếu hoặc sắp hết</option>
+              <option value="available">Còn dùng được</option>
+              <option value="unavailable">Không còn dùng được</option>
+              <option value="expired">Có hàng quá hạn</option>
+            </select>
+          </label>
+          <button class="btn btn-outline-secondary inventory-refresh" type="button" title="Làm mới dữ liệu kho" aria-label="Làm mới dữ liệu kho" @click="fetchInventoryData"><RefreshCw :size="18" /></button>
+        </div>
+        <div class="inventory-result-line mb-3">
+          <span>{{ filteredItems.length }} / {{ items.length }} nguyên liệu</span>
+          <span>Giá vốn và giá trị tính từ các lô còn hạn, còn số lượng.</span>
+          <button v-if="hasItemFilters" type="button" class="btn btn-link btn-sm p-0" @click="clearItemFilters">Xóa lọc</button>
         </div>
 
         <!-- Table Items -->
         <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
+          <table class="table table-hover align-middle mb-0 inventory-items-table">
             <thead class="table-light text-muted small text-uppercase">
               <tr>
-                <th style="width: 60px;">Mã</th>
                 <th>Tên Nguyên Liệu</th>
-                <th>Đơn Vị Tính</th>
-                <th class="text-end">Tồn Kho Hiện Tại</th>
-                <th class="text-end">Tối Thiểu</th>
+                <th class="text-end">Tồn dùng được</th>
                 <th class="text-center">Hao Hụt Sơ Chế</th>
-                <th class="text-end">Đơn Giá Vốn</th>
-                <th class="text-end">Tổng Giá Trị</th>
-                <th class="text-center">Lô & Hạn Gần Nhất</th>
+                <th class="text-end" title="Bình quân gia quyền từ giá vốn các lô còn dùng được, đã tính hao hụt lúc nhập">Giá vốn bình quân</th>
+                <th class="text-end">Giá trị dùng được</th>
+                <th class="text-center">Lô & HSD gần nhất</th>
                 <th class="text-center">Trạng Thái</th>
                 <th class="text-center" style="width: 140px;">Thao Tác</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="filteredItems.length === 0">
-                <td colspan="11" class="text-center text-muted py-4">
+                <td colspan="8" class="text-center text-muted py-4">
                   Không tìm thấy nguyên liệu nào phù hợp với điều kiện tìm kiếm.
                 </td>
               </tr>
               <tr v-for="item in filteredItems" :key="item.inventoryItemId">
-                <td class="fw-bold text-muted">#{{ item.inventoryItemId }}</td>
                 <td>
                   <div class="fw-bold text-dark fs-6">{{ item.itemName }}</div>
                   <div class="small text-muted d-flex align-items-center gap-1">
                     <span>🏢</span> {{ item.supplierName || 'Chưa gắn nhà cung cấp' }}
                   </div>
                 </td>
-                <td>
-                  <!-- Nếu có quy đổi (conversionRate > 1 và khác nhau) -->
-                  <div v-if="hasUnitConversion(item)" class="badge bg-light text-dark border px-2 py-1">
-                    1 {{ item.purchaseUnit }} = {{ Number(item.conversionRate).toLocaleString() }} {{ item.baseUnit }}
-                  </div>
-                  <!-- Nếu dùng đơn vị đơn thuần -->
-                  <div v-else class="badge bg-secondary-subtle text-secondary border px-2 py-1">
-                    {{ item.baseUnit }}
-                  </div>
-                </td>
                 <td class="text-end">
                   <div class="d-flex flex-column align-items-end">
                     <div class="fw-bold fs-6" :class="item.isLowStock ? 'text-danger' : 'text-dark'">
-                      {{ Number(item.currentQuantity).toLocaleString() }} <span class="small text-muted">{{ item.baseUnit }}</span>
+                      {{ formatQuantity(item.availableQuantity) }} <span class="small text-muted">{{ item.baseUnit }}</span>
                     </div>
-                    <div class="small text-muted" v-if="hasUnitConversion(item)">
-                      ≈ {{ item.quantityInPurchaseUnit }} {{ item.purchaseUnit }}
+                    <div class="small text-muted">
+                      Tồn sổ {{ formatQuantity(item.currentQuantity) }} {{ item.baseUnit }}
                     </div>
-                    <div class="stock-progress-track mt-1" :title="`Tồn: ${Number(item.currentQuantity).toLocaleString()} / Tối thiểu: ${Number(item.minimumQuantity).toLocaleString()} ${item.baseUnit}`">
+                    <small v-if="item.unavailableQuantity > 0" class="text-danger">{{ formatQuantity(item.unavailableQuantity) }} {{ item.baseUnit }} không dùng được</small>
+                    <small class="text-muted">Mức tối thiểu {{ formatQuantity(item.minimumQuantity) }} {{ item.baseUnit }}</small>
+                    <div class="stock-progress-track mt-1" :title="`Còn dùng được: ${formatQuantity(item.availableQuantity)} / tối thiểu: ${formatQuantity(item.minimumQuantity)} ${item.baseUnit}`">
                       <div 
                         class="stock-progress-fill" 
-                        :class="item.isLowStock ? 'bg-danger' : (item.currentQuantity <= item.minimumQuantity * 1.5 ? 'bg-warning' : 'bg-success')"
-                        :style="{ width: `${Math.min(100, item.minimumQuantity > 0 ? (item.currentQuantity / (item.minimumQuantity * 2)) * 100 : 100)}%` }"
+                        :class="item.isLowStock ? 'bg-danger' : 'bg-success'"
+                        :style="{ width: `${Math.min(100, item.minimumQuantity > 0 ? (item.availableQuantity / (item.minimumQuantity * 2)) * 100 : 100)}%` }"
                       ></div>
                     </div>
                   </div>
-                </td>
-                <td class="text-end text-muted">
-                  {{ Number(item.minimumQuantity).toLocaleString() }} <small>{{ item.baseUnit }}</small>
                 </td>
                 <td class="text-center">
                   <span
@@ -255,43 +276,45 @@
                   </span>
                 </td>
                 <td class="text-end">
-                  <div class="fw-semibold text-dark">{{ formatCurrency(item.costPerPurchaseUnit ?? item.costPerUnit) }} <small class="text-muted">/{{ item.purchaseUnit }}</small></div>
-                  <div class="small text-muted">
-                    {{ formatCurrency(item.costPerBaseUnit ?? item.costPerUnit) }}/{{ item.baseUnit }}
-                  </div>
+                  <template v-if="item.availableQuantity > 0">
+                    <div class="fw-semibold text-dark">{{ formatUnitCost(item.costPerPurchaseUnit) }} <small class="text-muted">/{{ item.purchaseUnit }}</small></div>
+                    <div v-if="hasUnitConversion(item)" class="small text-muted">{{ formatUnitCost(item.costPerBaseUnit) }}/{{ item.baseUnit }}</div>
+                    <div v-if="item.hasUntrackedStock" class="small text-warning-emphasis">Theo giá danh mục · chưa có lô</div>
+                  </template>
+                  <span v-else class="text-muted">Chưa có tồn khả dụng</span>
                 </td>
                 <td class="text-end fw-bold text-success">
                   {{ formatCurrency(item.totalValue) }}
-                  <div v-if="item.hasBatchQuantityMismatch" class="small text-danger fw-normal" :title="`Tổng lô ${Number(item.batchQuantityTotal).toLocaleString()} ${item.baseUnit}, tồn sổ ${Number(item.currentQuantity).toLocaleString()} ${item.baseUnit}`">Lệch tồn lô</div>
+                  <div v-if="item.hasBatchQuantityMismatch" class="small text-danger fw-normal" :title="`Tổng lô ${formatQuantity(item.batchQuantityTotal)} ${item.baseUnit}, tồn sổ ${formatQuantity(item.currentQuantity)} ${item.baseUnit}`">Lệch tồn lô</div>
                 </td>
                 <td class="text-center">
-                  <button class="btn btn-sm btn-outline-info py-0 px-2 fw-semibold" @click="viewItemBatches(item)">
-                    🏷️ {{ item.activeBatchesCount || 0 }} lô
+                  <button class="btn btn-sm btn-outline-secondary" @click="viewItemBatches(item)">
+                    <Tags :size="14" /> {{ item.activeBatchesCount || 0 }} lô dùng được
                   </button>
-                  <div class="small mt-1" v-if="item.earliestExpiry">
-                    <span class="badge" :class="isNearExpiry(item.earliestExpiry) ? 'bg-danger text-white' : 'bg-light text-muted border'">
-                      HSD: {{ formatDate(item.earliestExpiry) }}
+                  <div class="small mt-1" v-if="item.nearestExpiryDate">
+                    <span class="badge" :class="isNearExpiry(item.nearestExpiryDate) ? 'bg-warning-subtle text-warning-emphasis border' : 'bg-light text-muted border'">
+                      HSD {{ formatDate(item.nearestExpiryDate) }}
                     </span>
                   </div>
                 </td>
                 <td class="text-center">
                   <span v-if="item.isLowStock" class="badge bg-danger-subtle text-danger border border-danger px-2 py-1">
-                    ⚠️ Sắp Hết Hàng
+                    {{ item.availableQuantity <= 0 ? 'Hết hàng dùng được' : 'Sắp hết hàng' }}
                   </span>
                   <span v-else class="badge bg-success-subtle text-success border border-success px-2 py-1">
-                    ✓ Đủ Tồn Kho
+                    Đủ tồn kho
                   </span>
                 </td>
                 <td class="text-center">
                   <div class="d-flex justify-content-center gap-1">
-                    <button class="btn btn-sm btn-light border text-primary" title="Xem lô hàng" @click="viewItemBatches(item)">
-                      🏷️
+                    <button class="btn btn-sm btn-light border text-primary" title="Xem lô hàng" aria-label="Xem lô hàng" @click="viewItemBatches(item)">
+                      <Tags :size="16" />
                     </button>
-                    <button class="btn btn-sm btn-light border text-secondary" title="Chỉnh sửa" @click="openItemModal(item)">
-                      ✏️
+                    <button class="btn btn-sm btn-light border text-secondary" title="Chỉnh sửa nguyên liệu" aria-label="Chỉnh sửa nguyên liệu" @click="openItemModal(item)">
+                      <Pencil :size="16" />
                     </button>
-                    <button class="btn btn-sm btn-light border text-danger" title="Vô hiệu hóa" @click="deleteItem(item)">
-                      🗑️
+                    <button class="btn btn-sm btn-light border text-danger" title="Vô hiệu hóa nguyên liệu" aria-label="Vô hiệu hóa nguyên liệu" @click="deleteItem(item)">
+                      <Trash2 :size="16" />
                     </button>
                   </div>
                 </td>
@@ -305,68 +328,39 @@
       <!-- TAB 2: QUẢN LÝ LÔ HÀNG GOM NHÓM THEO NGUYÊN LIỆU & MÓN ĂN (FEFO TRACKER)  -->
       <!-- ========================================================================= -->
       <div v-if="activeTab === 'batches'" class="p-3 p-md-4">
-        <!-- FEFO Guide Banner -->
-        <div class="alert alert-info d-flex align-items-center justify-content-between p-3 mb-3 border-0 bg-info-subtle text-info-emphasis rounded-3">
-          <div class="d-flex align-items-center gap-2">
-            <span class="fs-4">⏳</span>
-            <div>
-              <strong>Quản lý Lô Hàng Gom Nhóm & Quy tắc FEFO (First-Expired, First-Out):</strong>
-              <div class="small">Mỗi nguyên liệu hiển thị tổng hợp kèm các món ăn sử dụng; bấm mở rộng để xem chi tiết các lô hàng xếp theo hạn dùng gần nhất.</div>
-            </div>
+        <div class="batch-workspace-header">
+          <div>
+            <div class="inventory-eyebrow">THEO DÕI FEFO</div>
+            <h2 class="batch-workspace-title">Lô hàng & hạn dùng</h2>
+            <p class="batch-workspace-description">Ưu tiên lô còn dùng được có hạn gần nhất. Lô quá hạn không được xuất bếp.</p>
           </div>
-          <div class="d-flex gap-2">
-            <!-- View Mode Switch -->
-            <div class="btn-group btn-group-sm">
-              <button 
-                class="btn" 
-                :class="batchViewMode === 'grouped' ? 'btn-primary fw-bold' : 'btn-outline-primary'" 
-                @click="batchViewMode = 'grouped'">
-                📂 Gom nhóm theo Nguyên Liệu
-              </button>
-              <button 
-                class="btn" 
-                :class="batchViewMode === 'flat' ? 'btn-primary fw-bold' : 'btn-outline-primary'" 
-                @click="batchViewMode = 'flat'">
-                📋 Danh sách phẳng
-              </button>
+          <div class="batch-workspace-actions">
+            <div class="btn-group" role="group" aria-label="Kiểu hiển thị lô hàng">
+              <button class="btn btn-sm" :class="batchViewMode === 'grouped' ? 'btn-success' : 'btn-outline-secondary'" :aria-pressed="batchViewMode === 'grouped'" @click="batchViewMode = 'grouped'">Theo nguyên liệu</button>
+              <button class="btn btn-sm" :class="batchViewMode === 'flat' ? 'btn-success' : 'btn-outline-secondary'" :aria-pressed="batchViewMode === 'flat'" @click="batchViewMode = 'flat'">Từng lô</button>
             </div>
-            <button class="btn btn-sm btn-success fw-bold" @click="openCreateBatchModal()">
-              Lập phiếu nhập
-            </button>
+            <button class="btn btn-sm btn-success" @click="openCreateBatchModal()"><PackagePlus :size="16" /> Lập phiếu nhập</button>
           </div>
         </div>
 
-        <!-- Filters -->
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-          <div class="d-flex flex-wrap gap-2 flex-grow-1" style="max-width: 750px;">
-            <input 
-              v-model="batchSearch" 
-              type="text" 
-              class="form-control form-control-sm" 
-              placeholder="🔍 Tìm theo tên nguyên liệu, món ăn, mã lô..."
-              style="max-width: 320px;"
-            />
-            <select v-model="batchFilterStatus" class="form-select form-select-sm" style="max-width: 170px;">
-              <option value="all">Tất cả trạng thái</option>
-              <option value="active">Đang sử dụng (Active)</option>
-              <option value="depleted">Đã hết số lượng</option>
-              <option value="expired">Đã hết hạn</option>
-            </select>
-            <select v-model="batchFilterExpiry" class="form-select form-select-sm" style="max-width: 180px;">
-              <option value="all">Tất cả hạn dùng</option>
-              <option value="7">Sắp hết hạn trong 7 ngày</option>
-              <option value="14">Sắp hết hạn trong 14 ngày</option>
-              <option value="30">Sắp hết hạn trong 30 ngày</option>
-            </select>
-          </div>
-          <div class="d-flex flex-wrap gap-2">
-            <button v-if="selectableExpiredBatches.length > 0" class="btn btn-sm btn-outline-danger" type="button" @click="selectAllExpiredBatches">
-              Chọn tất cả quá hạn ({{ selectableExpiredBatches.length }})
-            </button>
-            <button class="btn btn-sm btn-outline-secondary" @click="fetchBatches">
-              🔄 Làm mới
-            </button>
-          </div>
+        <div class="batch-status-shortcuts" role="group" aria-label="Lọc nhanh tình trạng lô">
+          <button type="button" :class="{ active: batchFilterStatus === 'active' && batchFilterExpiry === 'all' }" @click="setBatchQuickFilter('active')"><span>Còn dùng được</span><strong>{{ batchCounts.usable }}</strong></button>
+          <button type="button" :class="{ active: batchFilterStatus === 'active' && batchFilterExpiry === '7' }" @click="setBatchQuickFilter('expiring')"><span>Cận hạn 7 ngày</span><strong class="text-warning-emphasis">{{ batchCounts.expiring }}</strong></button>
+          <button type="button" :class="{ active: batchFilterStatus === 'expired' }" @click="setBatchQuickFilter('expired')"><span>Quá hạn còn tồn</span><strong class="text-danger">{{ batchCounts.expired }}</strong></button>
+          <button type="button" :class="{ active: batchFilterStatus === 'depleted' }" @click="setBatchQuickFilter('depleted')"><span>Đã dùng hết</span><strong class="text-muted">{{ batchCounts.depleted }}</strong></button>
+        </div>
+
+        <div class="batch-filter-bar mb-3">
+          <label class="batch-filter-field batch-search-field"><span>Tìm lô hàng</span><input v-model.trim="batchSearch" type="search" class="form-control form-control-sm" placeholder="Mã lô, nguyên liệu, món hoặc nhà cung cấp" /></label>
+          <label class="batch-filter-field"><span>Nhà cung cấp</span><select v-model="batchSupplierFilter" class="form-select form-select-sm"><option value="">Tất cả nhà cung cấp</option><option v-for="sup in suppliers" :key="sup.supplierId" :value="sup.supplierId">{{ sup.supplierName }}</option></select></label>
+          <label class="batch-filter-field"><span>Tình trạng lô</span><select v-model="batchFilterStatus" class="form-select form-select-sm"><option value="all">Tất cả trạng thái</option><option value="active">Còn dùng được</option><option value="expired">Quá hạn còn tồn</option><option value="depleted">Đã dùng hết</option></select></label>
+          <label class="batch-filter-field"><span>Hạn dùng</span><select v-model="batchFilterExpiry" class="form-select form-select-sm"><option value="all">Mọi hạn dùng</option><option value="7">Trong 7 ngày tới</option><option value="14">Trong 14 ngày tới</option><option value="30">Trong 30 ngày tới</option></select></label>
+          <button class="btn btn-outline-secondary batch-refresh" type="button" title="Làm mới lô hàng" aria-label="Làm mới lô hàng" @click="fetchBatches"><RefreshCw :size="16" /></button>
+        </div>
+        <div class="batch-filter-footer">
+          <span>{{ batchResultCount }} lô trong danh sách</span>
+          <button v-if="batchFilterStatus !== 'all' || batchFilterExpiry !== 'all' || batchSupplierFilter || batchSearch" type="button" class="btn btn-link btn-sm p-0" @click="clearBatchFilters">Xóa bộ lọc</button>
+          <button v-if="selectableExpiredBatches.length > 0" class="btn btn-sm btn-outline-danger ms-auto" type="button" @click="setBatchQuickFilter('expired'); selectAllExpiredBatches()">Chọn tất cả lô quá hạn ({{ selectableExpiredBatches.length }})</button>
         </div>
 
         <div v-if="batchActionMessage" class="alert alert-success d-flex align-items-start justify-content-between gap-3 py-3 mb-3" role="status">
@@ -419,22 +413,25 @@
           >
             <!-- Group Header -->
             <div 
-              class="p-3 d-flex flex-wrap justify-content-between align-items-center gap-3 cursor-pointer group-header-hover"
+              class="p-3 d-flex flex-wrap justify-content-between align-items-center gap-3 group-header-hover"
               :class="{ 'bg-warning-subtle': group.hasExpiringBatch, 'bg-light': !group.hasExpiringBatch }"
-              @click="toggleGroupExpand(group.inventoryItemId)"
+              :aria-expanded="isGroupExpanded(group.inventoryItemId)"
             >
               <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-sm btn-outline-secondary p-1 rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;">
+                <button class="btn btn-sm btn-outline-secondary p-1 rounded-circle d-flex align-items-center justify-content-center" :aria-label="`${isGroupExpanded(group.inventoryItemId) ? 'Thu gọn' : 'Mở rộng'} ${group.itemName}`" :aria-expanded="isGroupExpanded(group.inventoryItemId)" style="width: 36px; height: 36px;" @click="toggleGroupExpand(group.inventoryItemId)">
                   <span class="fw-bold" style="font-size: 0.8rem;">{{ isGroupExpanded(group.inventoryItemId) ? '▼' : '▶' }}</span>
                 </button>
                 <div>
                   <div class="d-flex align-items-center gap-2">
                     <h5 class="fw-bold text-dark m-0">{{ group.itemName }}</h5>
-                    <span class="badge bg-light text-dark border">
-                      {{ Number(group.totalRemaining).toLocaleString() }} {{ group.baseUnit }} tồn
+                    <span class="badge bg-success-subtle text-success border">
+                      {{ formatQuantity(group.usableQuantity) }} {{ group.baseUnit }} dùng được
                     </span>
-                    <span v-if="group.hasExpiringBatch" class="badge bg-warning text-dark border border-warning pulse-badge">
-                      ⚠️ Có lô sắp hết hạn
+                    <span v-if="group.expiredQuantity > 0" class="badge bg-danger-subtle text-danger border">
+                      {{ formatQuantity(group.expiredQuantity) }} {{ group.baseUnit }} quá hạn
+                    </span>
+                    <span v-if="group.hasExpiringBatch" class="badge bg-warning-subtle text-warning-emphasis border">
+                      Cận hạn
                     </span>
                   </div>
 
@@ -454,9 +451,9 @@
               <!-- Group Summary Stats & Quick Add -->
               <div class="d-flex align-items-center gap-3">
                 <div class="text-end d-none d-md-block">
-                  <div class="fw-bold text-dark">{{ group.batches.length }} lô hàng</div>
+                  <div class="fw-semibold text-dark">{{ group.batches.length }} lô hiển thị</div>
                   <div class="small text-muted">
-                    HSD gần nhất: <span :class="group.hasExpiringBatch ? 'text-danger fw-bold' : 'text-dark'">{{ formatDate(group.earliestExpiry) }}</span>
+                    HSD dùng được gần nhất: <span :class="group.hasExpiringBatch ? 'text-warning-emphasis fw-semibold' : 'text-dark'">{{ formatDate(group.earliestExpiry) }}</span>
                   </div>
                 </div>
                 <button 
@@ -478,11 +475,11 @@
                       <th class="ps-4">Mã Lô Hàng</th>
                       <th>Nhà Cung Cấp</th>
                       <th class="text-end">Tồn Còn Lại / Ban Đầu</th>
-                      <th class="text-end">Đơn Giá Vốn</th>
+                      <th class="text-end">Giá vốn lô</th>
                       <th>Ngày Nhập Kho</th>
                       <th>Hạn Sử Dụng (FEFO)</th>
-                      <th class="text-center">Đếm Ngược</th>
-                      <th class="text-center pe-4">Trạng Thái</th>
+                      <th class="text-center">Còn hạn</th>
+                      <th class="text-center pe-4">Tình trạng</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -505,7 +502,7 @@
                         {{ batch.supplierName || 'NCC nội bộ' }}
                       </td>
                       <td class="text-end">
-                        <div class="fw-bold">Còn {{ formatQuantity(batch.quantityRemaining) }} {{ batch.baseUnit }}</div>
+                        <div class="fw-bold" :class="batch.status === 'expired' ? 'text-danger' : 'text-dark'">{{ batch.status === 'expired' ? 'Quá hạn ·' : 'Còn' }} {{ formatQuantity(batch.quantityRemaining) }} {{ batch.baseUnit }}</div>
                         <div v-if="batch.isKitchenReturn" class="small text-muted">Hoàn từ bếp {{ formatQuantity(batch.originalQuantity) }} {{ batch.baseUnit }} · dùng trước {{ formatDate(batch.expiryDate) }}</div>
                         <div v-else class="small text-muted">Mua vào {{ formatQuantity(batch.grossReceivedQuantity ?? batch.originalQuantity) }} · thực nhận {{ formatQuantity(batch.actualUsableQuantity ?? batch.originalQuantity) }} {{ batch.baseUnit }}</div>
                         <div class="progress mt-1" style="height: 4px;">
@@ -517,8 +514,8 @@
                         </div>
                       </td>
                       <td class="text-end fw-semibold">
-                        {{ formatCurrency(batch.unitCostPerPurchaseUnit ?? batch.unitCost) }} <small class="text-muted">/{{ batch.purchaseUnit }}</small>
-                        <div class="small text-muted">{{ formatCurrency(batch.unitCostPerBaseUnit ?? batch.unitCost) }}/{{ batch.baseUnit }} (quy đổi)</div>
+                        {{ formatUnitCost(batch.unitCostPerPurchaseUnit ?? batch.unitCost) }} <small class="text-muted">/{{ batch.purchaseUnit }}</small>
+                        <div v-if="batch.conversionRate > 1" class="small text-muted">{{ formatUnitCost(batch.unitCostPerBaseUnit ?? batch.unitCost) }}/{{ batch.baseUnit }}</div>
                       </td>
                       <td class="small text-muted">
                         {{ formatDate(batch.receivedDate) }}
@@ -529,7 +526,7 @@
                         </strong>
                       </td>
                       <td class="text-center">
-                        <span v-if="batch.status === 'depleted'" class="badge bg-secondary text-white">Đã xuất hết</span>
+                        <span v-if="batch.quantityRemaining <= 0" class="badge bg-secondary-subtle text-secondary">Đã dùng hết</span>
                         <span v-else-if="batch.daysUntilExpiry < 0" class="badge bg-danger text-white">Quá hạn {{ Math.abs(batch.daysUntilExpiry) }} ngày</span>
                         <span v-else-if="batch.daysUntilExpiry <= 7" class="badge bg-warning text-dark border border-warning pulse-badge">
                           ⏳ Còn {{ batch.daysUntilExpiry }} ngày
@@ -539,13 +536,9 @@
                         </span>
                       </td>
                       <td class="text-center pe-4">
-                        <span v-if="batch.isExpired && batch.quantityRemaining > 0" class="badge bg-danger text-white">Quá hạn · chờ hủy</span>
-                        <span v-else-if="batch.status === 'active'" class="badge bg-success text-white">Active</span>
-                        <span v-else-if="batch.status === 'depleted'" class="badge bg-secondary text-white">Depleted</span>
-                        <span v-else class="badge bg-danger text-white">Expired</span>
-                        <button v-if="isWasteSelectableBatch(batch)" type="button" class="btn btn-sm btn-outline-danger d-block mx-auto mt-2" :class="{ active: isExpiredBatchSelected(batch) }" @click.stop="toggleExpiredBatch(batch)">
-                          {{ isExpiredBatchSelected(batch) ? 'Đã chọn hủy' : 'Chọn hủy' }}
-                        </button>
+                        <span v-if="isWasteSelectableBatch(batch)" class="badge bg-danger-subtle text-danger">Chờ xử lý hủy</span>
+                        <span v-else-if="batch.quantityRemaining <= 0" class="badge bg-secondary-subtle text-secondary">Đã dùng hết</span>
+                        <span v-else class="badge bg-success-subtle text-success">Dùng được</span>
                       </td>
                     </tr>
                   </tbody>
@@ -565,11 +558,11 @@
                 <th>Mã Lô Hàng</th>
                 <th>Nguyên Liệu</th>
                 <th class="text-end">Tồn Còn Lại / Ban Đầu</th>
-                <th class="text-end">Đơn Giá Vốn</th>
+                <th class="text-end">Giá vốn lô</th>
                 <th>Ngày Nhập Kho</th>
                 <th>Hạn Sử Dụng (FEFO)</th>
-                <th class="text-center">Đếm Ngược</th>
-                <th class="text-center">Trạng Thái</th>
+                <th class="text-center">Còn hạn</th>
+                <th class="text-center">Tình trạng</th>
               </tr>
             </thead>
             <tbody>
@@ -600,7 +593,7 @@
                   <strong class="text-dark">{{ batch.itemName }}</strong>
                 </td>
                 <td class="text-end">
-                  <div class="fw-bold">Còn {{ formatQuantity(batch.quantityRemaining) }} {{ batch.baseUnit }}</div>
+                  <div class="fw-bold" :class="batch.status === 'expired' ? 'text-danger' : 'text-dark'">{{ batch.status === 'expired' ? 'Quá hạn ·' : 'Còn' }} {{ formatQuantity(batch.quantityRemaining) }} {{ batch.baseUnit }}</div>
                   <div v-if="batch.isKitchenReturn" class="small text-muted">Hoàn từ bếp {{ formatQuantity(batch.originalQuantity) }} {{ batch.baseUnit }} · dùng trước {{ formatDate(batch.expiryDate) }}</div>
                   <div v-else class="small text-muted">Mua vào {{ formatQuantity(batch.grossReceivedQuantity ?? batch.originalQuantity) }} · thực nhận {{ formatQuantity(batch.actualUsableQuantity ?? batch.originalQuantity) }} {{ batch.baseUnit }}</div>
                   <div class="progress mt-1" style="height: 5px;">
@@ -612,8 +605,8 @@
                   </div>
                 </td>
                 <td class="text-end fw-semibold">
-                  {{ formatCurrency(batch.unitCostPerPurchaseUnit ?? batch.unitCost) }} <small class="text-muted">/{{ batch.purchaseUnit }}</small>
-                  <div class="small text-muted">{{ formatCurrency(batch.unitCostPerBaseUnit ?? batch.unitCost) }}/{{ batch.baseUnit }} (quy đổi)</div>
+                  {{ formatUnitCost(batch.unitCostPerPurchaseUnit ?? batch.unitCost) }} <small class="text-muted">/{{ batch.purchaseUnit }}</small>
+                  <div v-if="batch.conversionRate > 1" class="small text-muted">{{ formatUnitCost(batch.unitCostPerBaseUnit ?? batch.unitCost) }}/{{ batch.baseUnit }}</div>
                 </td>
                 <td class="small text-muted">
                   {{ formatDate(batch.receivedDate) }}
@@ -624,7 +617,7 @@
                   </strong>
                 </td>
                 <td class="text-center">
-                  <span v-if="batch.status === 'depleted'" class="badge bg-secondary text-white">Đã xuất hết</span>
+                  <span v-if="batch.quantityRemaining <= 0" class="badge bg-secondary-subtle text-secondary">Đã dùng hết</span>
                   <span v-else-if="batch.daysUntilExpiry < 0" class="badge bg-danger text-white">Quá hạn {{ Math.abs(batch.daysUntilExpiry) }} ngày</span>
                   <span v-else-if="batch.daysUntilExpiry <= 7" class="badge bg-warning text-dark border border-warning pulse-badge">
                     ⏳ Còn {{ batch.daysUntilExpiry }} ngày
@@ -634,10 +627,9 @@
                   </span>
                 </td>
                 <td class="text-center">
-                  <span v-if="batch.isExpired && batch.quantityRemaining > 0" class="badge bg-danger text-white">Quá hạn · chờ hủy</span>
-                  <span v-else-if="batch.status === 'active'" class="badge bg-success text-white">Active</span>
-                  <span v-else-if="batch.status === 'depleted'" class="badge bg-secondary text-white">Depleted</span>
-                  <span v-else class="badge bg-danger text-white">Expired</span>
+                  <span v-if="isWasteSelectableBatch(batch)" class="badge bg-danger-subtle text-danger">Chờ xử lý hủy</span>
+                  <span v-else-if="batch.quantityRemaining <= 0" class="badge bg-secondary-subtle text-secondary">Đã dùng hết</span>
+                  <span v-else class="badge bg-success-subtle text-success">Dùng được</span>
                   <button v-if="isWasteSelectableBatch(batch)" type="button" class="btn btn-sm btn-outline-danger d-block mx-auto mt-2" :class="{ active: isExpiredBatchSelected(batch) }" @click.stop="toggleExpiredBatch(batch)">
                     {{ isExpiredBatchSelected(batch) ? 'Đã chọn hủy' : 'Chọn hủy' }}
                   </button>
@@ -900,7 +892,7 @@
       <div class="card-modern item-modal-panel bg-white shadow-lg">
         <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
           <h5 class="fw-bold mb-0 text-dark">
-            {{ editingItem ? '✏️ Chỉnh Sửa Nguyên Liệu' : '➕ Thêm Nguyên Liệu Mới' }}
+            {{ editingItem ? 'Chỉnh sửa nguyên liệu' : 'Thêm nguyên liệu' }}
           </h5>
           <button class="btn-close" @click="showItemModal = false"></button>
         </div>
@@ -932,13 +924,13 @@
           </div>
 
           <!-- YÊU CẦU 1: TOGGLE QUY ĐỔI ĐƠN VỊ TÍNH (MẶC ĐỊNH LÀ ĐƠN VỊ ĐƠN GIẢN) -->
-          <div class="p-3 bg-light rounded-3 border mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div class="small fw-bold text-dark">⚖️ Đơn vị tính:</div>
+          <div class="ingredient-form-section mb-3">
+            <div class="unit-section-heading mb-2">
+              <div class="small fw-semibold text-dark">Đơn vị tính</div>
               <div class="form-check form-switch m-0">
                 <input class="form-check-input" type="checkbox" id="conversionToggle" v-model="itemForm.enableConversion" />
                 <label class="form-check-label small fw-bold text-primary" for="conversionToggle">
-                  Áp dụng quy đổi đơn vị mua / gốc
+                  Quy đổi đơn vị
                 </label>
               </div>
             </div>
@@ -1002,17 +994,14 @@
               <input v-model.number="itemForm.costPerUnit" type="number" step="any" min="0" class="form-control" required />
             </div>
           </div>
-          <div class="form-text mb-3">
-            Dùng để tính BOM và làm giá mặc định cho phiếu nhập mới. Giá các lô đã nhập vẫn giữ nguyên theo lịch sử.
-          </div>
 
-          <div class="p-3 bg-light-subtle rounded-3 border mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="ingredient-form-section mb-3">
+            <div class="unit-section-heading mb-2">
               <label class="form-label fw-bold text-dark d-flex align-items-center gap-2 mb-0" for="prepWastagePercent">
-                <span>📉 Tỷ lệ hao hụt sơ chế mặc định (%)</span>
+                <span>Hao hụt sơ chế mặc định (%)</span>
                 <span class="help-tooltip" tabindex="0">
-                  <button class="help-tooltip-trigger" type="button" aria-label="Giải thích hao hụt sơ chế">?</button>
-                  <span class="help-tooltip-panel" role="tooltip">
+                  <button class="help-tooltip-trigger" type="button" aria-label="Giải thích hao hụt sơ chế" aria-describedby="prep-wastage-help">?</button>
+                  <span id="prep-wastage-help" class="help-tooltip-panel" role="tooltip">
                     <strong>Hao hụt sơ chế là gì?</strong>
                     <span>Phần nguyên liệu mất đi khi rửa, lặt, gọt vỏ, lọc xương, bỏ đầu/ruột hoặc làm sạch. Tỷ lệ này là mức dự kiến để hệ thống tự động điền và tính toán lượng sạch khi lập phiếu nhập hàng.</span>
                     <span class="help-tooltip-example"><b>Ví dụ:</b> Mua 10 kg rau, dự kiến hao hụt 20% thì lượng sạch dự kiến là 8 kg. Khi nhập hàng, bạn có thể cân thực tế và ghi nhận đúng số lượng dùng được.</span>
@@ -1026,40 +1015,17 @@
             </div>
 
             <div class="row g-2 align-items-center mb-2">
-              <div class="col-sm-5 col-md-4">
+              <div class="col-5">
                 <div class="input-group">
                   <input id="prepWastagePercent" v-model.number="itemForm.prepWastagePercent" type="number" min="0" max="99.9" step="0.1" class="form-control fw-bold text-center" placeholder="0" />
                   <span class="input-group-text fw-bold">%</span>
                 </div>
               </div>
-              <div class="col-sm-7 col-md-8">
-                <div class="d-flex flex-wrap gap-1 align-items-center">
-                  <small class="text-muted me-1">Chọn nhanh:</small>
-                  <button 
-                    v-for="rate in [0, 5, 10, 15, 20, 25, 30]" 
-                    :key="rate" 
-                    type="button" 
-                    class="btn btn-xs btn-outline-secondary py-0 px-2"
-                    :class="{ 'btn-success text-white border-success': Number(itemForm.prepWastagePercent) === rate }"
-                    @click="itemForm.prepWastagePercent = rate"
-                  >
-                    {{ rate }}%
-                  </button>
-                </div>
+              <div class="col-7 small text-muted">
+                Thu hồi dự kiến <strong>{{ formatQuantity(100 - Number(itemForm.prepWastagePercent || 0)) }}%</strong>
               </div>
             </div>
 
-            <div class="small p-2 bg-white rounded border text-muted">
-              <div class="d-flex align-items-center gap-1 text-primary fw-semibold mb-1">
-                <span>💡 Trích xuất khi nhập hàng:</span>
-              </div>
-              <div v-if="Number(itemForm.prepWastagePercent) > 0">
-                Khi nhập <strong>10 {{ activePurchaseUnit }}</strong> thô ➔ Lượng sạch dùng được dự kiến: <strong>{{ (10 * (1 - (Number(itemForm.prepWastagePercent) || 0) / 100)).toFixed(2) }} {{ activePurchaseUnit }}</strong> (Hao hụt sơ chế bỏ đi: {{ (10 * (Number(itemForm.prepWastagePercent) || 0) / 100).toFixed(2) }} {{ activePurchaseUnit }}).
-              </div>
-              <div v-else>
-                Nguyên liệu không có hao hụt (100% sử dụng được). Lượng mua vào bằng đúng lượng nhập kho sạch.
-              </div>
-            </div>
           </div>
 
           <!-- Tồn đầu kỳ cũng được ghi nhận qua phiếu nhập chờ duyệt. -->
@@ -1236,69 +1202,71 @@
     <!-- ========================================================================= -->
     <!-- MODAL 3: XEM CÁC LÔ CỦA MỘT NGUYÊN LIỆU CỤ THỂ                            -->
     <!-- ========================================================================= -->
-    <div v-if="showItemBatchesModal" class="modal-backdrop-custom d-flex align-items-center justify-content-center p-3">
-      <div class="card-modern bg-white p-4 shadow-lg" style="max-width: 800px; width: 100%;">
-        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+    <div v-if="showItemBatchesModal" class="modal-backdrop-custom d-flex align-items-center justify-content-center p-2 p-md-3" @click.self="showItemBatchesModal = false">
+      <div class="card-modern bg-white shadow-lg item-batches-panel" role="dialog" aria-modal="true" aria-labelledby="item-batches-title">
+        <div class="item-batches-header d-flex justify-content-between align-items-start gap-3">
           <div>
-            <h5 class="fw-bold mb-0 text-dark">🏷️ Danh Sách Lô Hàng: {{ viewingItem?.itemName }}</h5>
-            <div class="small text-muted">Sắp xếp theo thứ tự ưu tiên xuất kho FEFO (Hạn dùng gần nhất)</div>
+            <div class="inventory-eyebrow">LÔ HÀNG · {{ viewingItem?.itemName }}</div>
+            <h5 id="item-batches-title" class="fw-semibold mb-1 text-dark">Theo dõi tồn và giá vốn từng lô</h5>
+            <div class="small text-muted">Lô còn dùng được xếp theo hạn dùng gần nhất (FEFO).</div>
           </div>
-          <button class="btn-close" @click="showItemBatchesModal = false"></button>
+          <button class="btn-close flex-shrink-0" aria-label="Đóng chi tiết lô" @click="showItemBatchesModal = false"></button>
         </div>
-
-        <div class="table-responsive">
-          <table class="table table-sm table-hover align-middle mb-0">
+        <div class="item-batches-toolbar">
+          <div class="small text-muted">{{ itemSpecificBatches.filter(b => b.status === 'active' && b.quantityRemaining > 0).length }} lô dùng được · {{ itemSpecificBatches.filter(b => b.status === 'expired' && b.quantityRemaining > 0).length }} lô quá hạn</div>
+          <label class="d-flex align-items-center gap-2 small mb-0">Hiển thị
+            <select v-model="itemBatchFilter" class="form-select form-select-sm" aria-label="Lọc lô hàng">
+              <option value="available">Còn dùng được</option>
+              <option value="expired">Quá hạn</option>
+              <option value="depleted">Đã hết</option>
+              <option value="all">Tất cả lô</option>
+            </select>
+          </label>
+        </div>
+        <div class="table-responsive item-batches-scroll">
+          <table class="table table-sm table-hover align-middle mb-0 item-batches-table">
             <thead class="table-light small text-muted text-uppercase">
               <tr>
-                <th>Mã Lô</th>
-                <th class="text-end">Tồn Còn / Ban Đầu</th>
-                <th class="text-end">Giá Vốn</th>
-                <th>Ngày Nhập</th>
-                <th>Hạn Sử Dụng</th>
-                <th class="text-center">Đếm Ngược</th>
-                <th class="text-center">Trạng Thái</th>
+                <th>Mã lô / nguồn</th>
+                <th class="text-end">Còn / đã nhận</th>
+                <th class="text-end" title="Giá vốn sau hao hụt sơ chế lúc nhập lô">Giá vốn lô</th>
+                <th>Ngày nhập</th>
+                <th>Hạn dùng</th>
+                <th>Trạng thái</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="itemSpecificBatches.length === 0">
-                <td colspan="7" class="text-center text-muted py-4">
-                  Chưa có lô hàng nào cho nguyên liệu này.
+              <tr v-if="visibleItemBatches.length === 0">
+                <td colspan="6" class="text-center text-muted py-4">
+                  Không có lô hàng trong chế độ hiển thị này.
                 </td>
               </tr>
-              <tr v-for="b in itemSpecificBatches" :key="b.batchId">
-                <td class="font-monospace fw-bold">{{ b.batchCode }}<span v-if="b.isKitchenReturn" class="badge bg-warning-subtle text-dark border border-warning ms-1">Hoàn bếp · ưu tiên dùng</span></td>
+              <tr v-for="b in visibleItemBatches" :key="b.batchId">
+                <td><strong class="font-monospace">{{ b.batchCode }}</strong><div class="small text-muted">{{ b.isKitchenReturn ? 'Hoàn từ bếp' : (b.supplierName || 'Nhập kho') }}</div></td>
                 <td class="text-end">
-                  <div>Còn {{ formatQuantity(b.quantityRemaining) }} {{ viewingItem?.baseUnit }}</div>
-                  <div v-if="b.isKitchenReturn" class="small text-muted">Hoàn từ bếp {{ formatQuantity(b.originalQuantity) }} {{ viewingItem?.baseUnit }} · dùng trước {{ formatDate(b.expiryDate) }}</div>
-                  <div v-else class="small text-muted">Mua vào {{ formatQuantity(b.grossReceivedQuantity ?? b.originalQuantity) }} · thực nhận {{ formatQuantity(b.actualUsableQuantity ?? b.originalQuantity) }}</div>
+                  <strong>{{ formatQuantity(b.quantityRemaining) }} {{ viewingItem?.baseUnit }}</strong>
+                  <div class="small text-muted">Ban đầu {{ formatQuantity(b.originalQuantity) }} {{ viewingItem?.baseUnit }}</div>
+                  <div v-if="!b.isKitchenReturn && b.grossReceivedQuantity !== b.actualUsableQuantity" class="small text-muted">Mua {{ formatQuantity(b.grossReceivedQuantity) }} · dùng {{ formatQuantity(b.actualUsableQuantity) }} {{ viewingItem?.baseUnit }}</div>
                 </td>
                 <td class="text-end">
-                  {{ formatCurrency(b.unitCostPerPurchaseUnit ?? b.unitCost) }}/{{ viewingItem?.purchaseUnit }}
-                  <div class="small text-muted">{{ formatCurrency(b.unitCostPerBaseUnit ?? b.unitCost) }}/{{ viewingItem?.baseUnit }}</div>
+                  <strong>{{ formatUnitCost(b.unitCostPerPurchaseUnit ?? b.unitCost) }}/{{ viewingItem?.purchaseUnit }}</strong>
+                  <div v-if="hasUnitConversion(viewingItem)" class="small text-muted">{{ formatUnitCost(b.unitCostPerBaseUnit) }}/{{ viewingItem?.baseUnit }}</div>
                 </td>
                 <td class="small text-muted">{{ formatDate(b.receivedDate) }}</td>
-                <td class="fw-bold" :class="b.isExpiringSoon ? 'text-danger' : 'text-dark'">
-                  {{ formatDate(b.expiryDate) }}
-                </td>
-                <td class="text-center">
-                  <span v-if="b.daysUntilExpiry <= 7" class="badge bg-warning text-dark">Còn {{ b.daysUntilExpiry }} ngày</span>
+                <td><strong>{{ formatDate(b.expiryDate) }}</strong></td>
+                <td>
+                  <span v-if="b.quantityRemaining <= 0" class="badge bg-secondary-subtle text-secondary">Đã hết</span>
+                  <span v-else-if="b.status === 'expired'" class="badge bg-danger-subtle text-danger">Quá hạn {{ Math.abs(b.daysUntilExpiry) }} ngày</span>
+                  <span v-else-if="b.daysUntilExpiry <= 7" class="badge bg-warning-subtle text-warning-emphasis">Còn {{ b.daysUntilExpiry }} ngày</span>
                   <span v-else class="badge bg-success-subtle text-success">Còn {{ b.daysUntilExpiry }} ngày</span>
-                </td>
-                <td class="text-center">
-                  <span v-if="b.isExpired && b.quantityRemaining > 0" class="badge bg-danger">Quá hạn · chờ hủy</span>
-                  <span v-else class="badge" :class="b.status === 'active' ? 'bg-success' : 'bg-secondary'">{{ b.status }}</span>
-                  <button v-if="isWasteSelectableBatch(b)" type="button" class="btn btn-sm btn-outline-danger d-block mx-auto mt-2" :class="{ active: isExpiredBatchSelected(b) }" @click.stop="toggleExpiredBatch(b)">
-                    {{ isExpiredBatchSelected(b) ? 'Đã chọn hủy' : 'Chọn hủy' }}
-                  </button>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-
-        <div class="d-flex justify-content-end gap-2 border-top pt-3 mt-3">
-          <button class="btn btn-sm btn-outline-secondary" @click="showItemBatchesModal = false">Đóng</button>
-          <button class="btn btn-sm btn-warning fw-bold" @click="showItemBatchesModal = false; openCreateBatchModal(viewingItem)">Lập phiếu nhập</button>
+        <div class="item-batches-footer d-flex justify-content-end gap-2">
+          <button class="btn btn-outline-secondary" @click="showItemBatchesModal = false">Đóng</button>
+          <button class="btn btn-success" @click="showItemBatchesModal = false; openCreateBatchModal(viewingItem)"><PackagePlus :size="17" /> Lập phiếu nhập</button>
         </div>
       </div>
     </div>
@@ -1350,12 +1318,14 @@
 </template>
 
 <script setup>
+import InventoryWorkspaceNav from '@/components/InventoryWorkspaceNav.vue';
+import { Boxes, ClipboardList, Clock3, PackagePlus, Pencil, Plus, RefreshCw, Tags, Trash2, TriangleAlert, Truck, Utensils, Wallet } from '@lucide/vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { signalrService } from '@/services/signalr.js';
 
-const API_BASE = 'http://localhost:5079/api/admin/inventory';
+const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5079'}/api/admin/inventory`;
 const RECEIPTS_API = `${API_BASE}/receipts`;
 const router = useRouter();
 const activeTab = ref('items');
@@ -1368,28 +1338,65 @@ const summary = ref({
   totalSuppliers: 0,
   totalValue: 0,
   expiredBatchesCount: 0,
-  expiringBatchesCount: 0
+  expiringBatchesCount: 0,
+  pendingReceiptCount: 0,
+  recentReceipts: [],
+  monthlyStockFlow: [],
+  topIssuedItems: []
 });
 
 // 2. Tab Items
 const items = ref([]);
 const itemSearch = ref('');
 const selectedSupplierFilter = ref('');
-const onlyLowStockFilter = ref(false);
+const itemStockFilter = ref('all');
+const hasItemFilters = computed(() => Boolean(itemSearch.value || selectedSupplierFilter.value || itemStockFilter.value !== 'all'));
+const urgentItems = computed(() => items.value.filter(item => item.isLowStock)
+  .sort((a, b) => Number(a.availableQuantity) - Number(b.availableQuantity)).slice(0, 3));
+const flowMaximum = computed(() => Math.max(0, ...(summary.value.monthlyStockFlow || [])
+  .flatMap(month => [Number(month.importValue) || 0, Number(month.exportValue) || 0])));
+const flowMissingCostCount = computed(() => (summary.value.monthlyStockFlow || [])
+  .reduce((total, month) => total + (Number(month.missingCostCount) || 0), 0));
+function flowHeight(value) {
+  const amount = Number(value) || 0;
+  return amount > 0 && flowMaximum.value > 0 ? `${Math.max(4, amount / flowMaximum.value * 100)}%` : '0%';
+}
+function flowMonthLabel(month) {
+  const [year, monthNumber] = String(month).split('-');
+  return `${monthNumber}/${String(year).slice(2)}`;
+}
+function receiptTypeLabel(type) {
+  return ({ import_supplier: 'Nhập mua', export_kitchen: 'Xuất bếp', return_from_kitchen: 'Hoàn bếp', waste_disposal: 'Xuất hủy', audit_adjustment: 'Kiểm kê' })[type] || 'Phiếu kho';
+}
+function receiptStatusLabel(status) {
+  return ({ draft: 'Chờ duyệt', approved: 'Đã duyệt', cancelled: 'Đã hủy' })[status] || status;
+}
+function focusLowStockItem(item) {
+  activeTab.value = 'items';
+  itemStockFilter.value = 'low';
+  itemSearch.value = item.itemName;
+}
 
 const filteredItems = computed(() => {
   return items.value.filter(item => {
-    const matchSearch = !itemSearch.value || 
-      item.itemName.toLowerCase().includes(itemSearch.value.toLowerCase()) ||
-      item.baseUnit.toLowerCase().includes(itemSearch.value.toLowerCase()) ||
-      item.purchaseUnit.toLowerCase().includes(itemSearch.value.toLowerCase());
-
-    const matchSupplier = !selectedSupplierFilter.value || item.supplierId === selectedSupplierFilter.value;
-    const matchLowStock = !onlyLowStockFilter.value || item.isLowStock;
-
-    return matchSearch && matchSupplier && matchLowStock;
+    const search = itemSearch.value.toLocaleLowerCase('vi-VN');
+    const matchSearch = !search || [item.itemName, item.baseUnit, item.purchaseUnit, item.supplierName]
+      .some(value => String(value || '').toLocaleLowerCase('vi-VN').includes(search));
+    const matchSupplier = !selectedSupplierFilter.value || Number(item.supplierId) === Number(selectedSupplierFilter.value);
+    const matchStock = itemStockFilter.value === 'all'
+      || (itemStockFilter.value === 'low' && item.isLowStock)
+      || (itemStockFilter.value === 'available' && Number(item.availableQuantity) > 0)
+      || (itemStockFilter.value === 'unavailable' && Number(item.availableQuantity) <= 0)
+      || (itemStockFilter.value === 'expired' && Number(item.unavailableQuantity) > 0);
+    return matchSearch && matchSupplier && matchStock;
   });
 });
+
+function clearItemFilters() {
+  itemSearch.value = '';
+  selectedSupplierFilter.value = '';
+  itemStockFilter.value = 'all';
+}
 
 function hasUnitConversion(item) {
   return item && item.conversionRate > 1 && item.purchaseUnit && item.purchaseUnit.toLowerCase() !== item.baseUnit.toLowerCase();
@@ -1397,7 +1404,7 @@ function hasUnitConversion(item) {
 
 function filterOnlyLowStock() {
   activeTab.value = 'items';
-  onlyLowStockFilter.value = true;
+  itemStockFilter.value = 'low';
 }
 
 function filterExpiredBatches() {
@@ -1410,7 +1417,8 @@ function filterExpiredBatches() {
 // 3. Tab Batches (Grouped & Flat view)
 const batches = ref([]);
 const batchSearch = ref('');
-const batchFilterStatus = ref('all');
+const batchSupplierFilter = ref('');
+const batchFilterStatus = ref('active');
 const batchFilterExpiry = ref('all');
 const batchViewMode = ref('grouped'); // 'grouped' | 'flat'
 const expandedGroupIds = ref(new Set());
@@ -1425,6 +1433,13 @@ const selectedExpiredBatches = computed(() => {
 });
 
 const selectableExpiredBatches = computed(() => batches.value.filter(isWasteSelectableBatch));
+const batchCounts = computed(() => ({
+  usable: batches.value.filter(batch => batch.status === 'active' && Number(batch.quantityRemaining) > 0).length,
+  expiring: batches.value.filter(batch => batch.status === 'active' && Number(batch.quantityRemaining) > 0 && batch.daysUntilExpiry >= 0 && batch.daysUntilExpiry <= 7).length,
+  expired: selectableExpiredBatches.value.length,
+  depleted: batches.value.filter(batch => Number(batch.quantityRemaining) <= 0).length
+}));
+const batchResultCount = computed(() => filteredBatches.value.length);
 
 const selectedExpiredItemCount = computed(() => {
   return new Set(selectedExpiredBatches.value.map(batch => batch.inventoryItemId)).size;
@@ -1454,6 +1469,24 @@ function clearExpiredBatchSelection() {
 function selectAllExpiredBatches() {
   selectedExpiredBatchIds.value = selectableExpiredBatches.value.map(batch => String(batch.batchId));
   batchActionError.value = '';
+}
+
+function setBatchQuickFilter(filter) {
+  batchFilterExpiry.value = 'all';
+  if (filter === 'expiring') {
+    batchFilterStatus.value = 'active';
+    batchFilterExpiry.value = '7';
+  } else {
+    batchFilterStatus.value = filter;
+  }
+  if (filter === 'expired') selectAllExpiredBatches();
+}
+
+function clearBatchFilters() {
+  batchSearch.value = '';
+  batchSupplierFilter.value = '';
+  batchFilterStatus.value = 'active';
+  batchFilterExpiry.value = 'all';
 }
 
 async function confirmSelectedExpiredWaste() {
@@ -1533,17 +1566,17 @@ const itemUsedInFoodsMap = computed(() => {
 
 // Gom nhóm các Lô hàng theo Nguyên Liệu
 const groupedBatchesByItem = computed(() => {
-  // Lấy các lô phù hợp với bộ lọc status và expiry trước
   const filtered = batches.value.filter(b => {
     const matchStatus = batchFilterStatus.value === 'all' || b.status.toLowerCase() === batchFilterStatus.value.toLowerCase();
+    const matchSupplier = !batchSupplierFilter.value || Number(b.supplierId) === Number(batchSupplierFilter.value);
 
     let matchExpiry = true;
     if (batchFilterExpiry.value !== 'all') {
       const days = parseInt(batchFilterExpiry.value, 10);
-      matchExpiry = b.daysUntilExpiry <= days && b.status === 'active';
+      matchExpiry = b.daysUntilExpiry >= 0 && b.daysUntilExpiry <= days && b.status === 'active' && Number(b.quantityRemaining) > 0;
     }
 
-    return matchStatus && matchExpiry;
+    return matchStatus && matchSupplier && matchExpiry;
   });
 
   // Gom theo InventoryItemId
@@ -1557,39 +1590,43 @@ const groupedBatchesByItem = computed(() => {
         purchaseUnit: b.purchaseUnit,
         conversionRate: b.conversionRate,
         batches: [],
-        totalRemaining: 0,
+        usableQuantity: 0,
+        expiredQuantity: 0,
         hasExpiringBatch: false,
         earliestExpiry: null,
         usedInFoods: itemUsedInFoodsMap.value[b.inventoryItemId] || []
       };
     }
     groups[b.inventoryItemId].batches.push(b);
-    groups[b.inventoryItemId].totalRemaining += b.quantityRemaining;
+    if (b.status === 'active' && Number(b.quantityRemaining) > 0) groups[b.inventoryItemId].usableQuantity += Number(b.quantityRemaining);
+    if (b.status === 'expired' && Number(b.quantityRemaining) > 0) groups[b.inventoryItemId].expiredQuantity += Number(b.quantityRemaining);
     if (b.isExpiringSoon && b.status === 'active') {
       groups[b.inventoryItemId].hasExpiringBatch = true;
     }
-    if (!groups[b.inventoryItemId].earliestExpiry || new Date(b.expiryDate) < new Date(groups[b.inventoryItemId].earliestExpiry)) {
+    if (b.status === 'active' && Number(b.quantityRemaining) > 0
+      && (!groups[b.inventoryItemId].earliestExpiry || new Date(b.expiryDate) < new Date(groups[b.inventoryItemId].earliestExpiry))) {
       groups[b.inventoryItemId].earliestExpiry = b.expiryDate;
     }
   }
 
   // Filter theo search keyword
   let result = Object.values(groups);
-  if (batchSearch.value) {
-    const q = batchSearch.value.toLowerCase();
+  if (batchSearch.value || batchSupplierFilter.value) {
+    const q = batchSearch.value.toLocaleLowerCase('vi-VN');
     result = result.filter(g => {
-      const matchName = g.itemName.toLowerCase().includes(q);
-      const matchBatch = g.batches.some(b => b.batchCode.toLowerCase().includes(q));
-      const matchFood = g.usedInFoods.some(f => f.toLowerCase().includes(q));
-      return matchName || matchBatch || matchFood;
+      const matchName = !q || g.itemName.toLocaleLowerCase('vi-VN').includes(q);
+      const matchBatch = !q || g.batches.some(b => b.batchCode.toLocaleLowerCase('vi-VN').includes(q));
+      const matchSupplier = !q || g.batches.some(b => String(b.supplierName || '').toLocaleLowerCase('vi-VN').includes(q));
+      const matchFood = !q || g.usedInFoods.some(f => f.toLocaleLowerCase('vi-VN').includes(q));
+      return matchName || matchBatch || matchSupplier || matchFood;
     });
   }
 
-  // Sắp xếp các nhóm: nguyên liệu có lô cận hạn nhất lên đầu
+  for (const group of result) group.batches.sort(sortBatchesForUse);
   result.sort((a, b) => {
-    if (a.hasExpiringBatch && !b.hasExpiringBatch) return -1;
-    if (!a.hasExpiringBatch && b.hasExpiringBatch) return 1;
-    return (new Date(a.earliestExpiry || '2099-01-01')) - (new Date(b.earliestExpiry || '2099-01-01'));
+    const aDate = new Date(a.earliestExpiry || '2999-12-31');
+    const bDate = new Date(b.earliestExpiry || '2999-12-31');
+    return aDate - bDate || a.itemName.localeCompare(b.itemName, 'vi');
   });
 
   return result;
@@ -1597,21 +1634,31 @@ const groupedBatchesByItem = computed(() => {
 
 const filteredBatches = computed(() => {
   return batches.value.filter(b => {
-    const matchSearch = !batchSearch.value || 
-      b.batchCode.toLowerCase().includes(batchSearch.value.toLowerCase()) ||
-      b.itemName.toLowerCase().includes(batchSearch.value.toLowerCase());
+    const q = batchSearch.value.toLocaleLowerCase('vi-VN');
+    const usedInFood = itemUsedInFoodsMap.value[b.inventoryItemId] || [];
+    const matchSearch = !q || [b.batchCode, b.itemName, b.supplierName, ...usedInFood]
+      .some(value => String(value || '').toLocaleLowerCase('vi-VN').includes(q));
+    const matchSupplier = !batchSupplierFilter.value || Number(b.supplierId) === Number(batchSupplierFilter.value);
 
     const matchStatus = batchFilterStatus.value === 'all' || b.status.toLowerCase() === batchFilterStatus.value.toLowerCase();
 
     let matchExpiry = true;
     if (batchFilterExpiry.value !== 'all') {
       const days = parseInt(batchFilterExpiry.value, 10);
-      matchExpiry = b.daysUntilExpiry <= days && b.status === 'active';
+      matchExpiry = b.daysUntilExpiry >= 0 && b.daysUntilExpiry <= days && b.status === 'active' && Number(b.quantityRemaining) > 0;
     }
 
-    return matchSearch && matchStatus && matchExpiry;
-  });
+    return matchSearch && matchSupplier && matchStatus && matchExpiry;
+  }).sort(sortBatchesForUse);
 });
+
+function sortBatchesForUse(a, b) {
+  const statePriority = batch => Number(batch.quantityRemaining) <= 0 ? 2 : batch.status === 'expired' ? 1 : 0;
+  const stateOrder = statePriority(a) - statePriority(b);
+  if (stateOrder) return stateOrder;
+  const returnPriority = Number(b.isKitchenReturn) - Number(a.isKitchenReturn);
+  return returnPriority || new Date(a.expiryDate) - new Date(b.expiryDate) || new Date(a.receivedDate) - new Date(b.receivedDate);
+}
 
 function calculateBatchPercent(batch) {
   if (!batch.originalQuantity || batch.originalQuantity <= 0) return 0;
@@ -1790,6 +1837,20 @@ function isWeightUnit(unit) {
 const showItemBatchesModal = ref(false);
 const viewingItem = ref(null);
 const itemSpecificBatches = ref([]);
+const itemBatchFilter = ref('available');
+const visibleItemBatches = computed(() => itemSpecificBatches.value
+  .filter(b => itemBatchFilter.value === 'all'
+    || (itemBatchFilter.value === 'available' && b.status === 'active' && Number(b.quantityRemaining) > 0)
+    || (itemBatchFilter.value === 'expired' && b.status === 'expired' && Number(b.quantityRemaining) > 0)
+    || (itemBatchFilter.value === 'depleted' && Number(b.quantityRemaining) <= 0))
+  .sort((a, b) => {
+    const statePriority = batch => Number(batch.quantityRemaining) <= 0 ? 2 : batch.status === 'expired' ? 1 : 0;
+    const stateOrder = statePriority(a) - statePriority(b);
+    if (stateOrder) return stateOrder;
+    const aPriority = a.isKitchenReturn ? 0 : 1;
+    const bPriority = b.isKitchenReturn ? 0 : 1;
+    return aPriority - bPriority || new Date(a.expiryDate) - new Date(b.expiryDate) || new Date(a.receivedDate) - new Date(b.receivedDate);
+  }));
 
 const showSupplierModal = ref(false);
 const editingSupplier = ref(null);
@@ -1829,8 +1890,11 @@ async function fetchBatches() {
         batches.value.filter(isWasteSelectableBatch).map(batch => String(batch.batchId))
       );
       selectedExpiredBatchIds.value = selectedExpiredBatchIds.value.filter(id => availableExpiredIds.has(String(id)));
-      // Mặc định mở rộng 3 nhóm đầu tiên
-      const topIds = batches.value.slice(0, 3).map(b => b.inventoryItemId);
+      // Mở sẵn các nguyên liệu có lô khả dụng gần hạn nhất.
+      const topIds = batches.value
+        .filter(batch => batch.status === 'active' && Number(batch.quantityRemaining) > 0)
+        .slice(0, 3)
+        .map(batch => batch.inventoryItemId);
       topIds.forEach(id => expandedGroupIds.value.add(id));
     }
   } catch (err) {
@@ -2157,6 +2221,7 @@ async function viewItemBatches(item) {
     });
     if (res.data?.success) {
       itemSpecificBatches.value = res.data.data;
+      itemBatchFilter.value = 'available';
       showItemBatchesModal.value = true;
     }
   } catch (err) {
@@ -2213,7 +2278,18 @@ async function deleteSupplier(sup) {
 
 // Formatters
 function formatCurrency(val) {
-  return (val || 0).toLocaleString('vi-VN') + ' đ';
+  return Number(val || 0).toLocaleString('vi-VN', { maximumFractionDigits: 2 }) + ' đ';
+}
+
+function formatCompactCurrency(val) {
+  const amount = Number(val) || 0;
+  if (amount >= 1_000_000) return (amount / 1_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' triệu đ';
+  return formatCurrency(amount);
+}
+
+function formatUnitCost(val) {
+  const amount = Number(val) || 0;
+  return amount.toLocaleString('vi-VN', { maximumFractionDigits: amount < 1 ? 4 : 2 }) + ' đ';
 }
 
 function formatQuantity(val) {
@@ -2262,6 +2338,77 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.warehouse-overview{margin:0 0 20px;color:#213b34}.warehouse-overview-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:12px}.warehouse-overview-head h2{margin:3px 0;font-size:19px;font-weight:700}.warehouse-overview-head p{margin:0;color:#657872;font-size:13px}.warehouse-report-link{font-size:13px;font-weight:700;color:#08775f;text-decoration:none;white-space:nowrap}.warehouse-report-link:hover{text-decoration:underline}.warehouse-overview-grid{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:12px}.warehouse-overview-card{min-width:0;padding:16px;background:#fff;border:1px solid #dce8e2;border-radius:10px;box-shadow:0 2px 10px #1c483608}.warehouse-card-heading{display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:11px}.warehouse-card-heading h3{margin:0;font-size:15px;font-weight:700}.warehouse-card-heading small,.warehouse-subtitle{display:block;color:#748780;font-size:11px}.warehouse-card-heading a{font-size:12px;font-weight:700;color:#08775f;text-decoration:none}.warehouse-card-heading>span{font-size:11px;color:#8b5b05;background:#fff4d8;border-radius:100px;padding:3px 7px;white-space:nowrap}.warehouse-action-row{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:38px;gap:8px;padding:7px 1px;border:0;border-bottom:1px solid #edf1ef;background:transparent;color:#344a42;font:inherit;font-size:12px;text-align:left;text-decoration:none;cursor:pointer}.warehouse-action-row:hover,.warehouse-low-list button:hover,.warehouse-receipt-list a:hover{color:#08775f;background:#f4faf7}.warehouse-action-row strong{color:#0f766e;font-size:15px}.warehouse-low-list{margin-top:14px}.warehouse-subtitle{margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.warehouse-low-list button{display:flex;justify-content:space-between;gap:8px;width:100%;padding:6px 0;border:0;background:none;font:inherit;font-size:11px;text-align:left;cursor:pointer}.warehouse-low-list button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.warehouse-low-list button strong{white-space:nowrap;color:#b45309}.warehouse-quiet,.warehouse-data-note{margin:9px 0 0;color:#748780;font-size:11px;line-height:1.45}.warehouse-flow-legend{display:flex;gap:15px;font-size:11px;color:#546c63}.warehouse-flow-legend span{display:flex;align-items:center;gap:5px}.warehouse-flow-legend i{width:9px;height:9px;border-radius:2px}.flow-import{background:#23ad87}.flow-export{background:#df9159}.warehouse-flow-chart{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;height:142px;margin-top:17px;padding-bottom:3px;border-bottom:1px solid #e7eeeb}.warehouse-flow-month{display:flex;flex-direction:column;align-items:center;justify-content:end;min-width:0;font-size:10px;color:#748780}.warehouse-flow-bars{display:flex;align-items:end;justify-content:center;gap:4px;width:100%;height:110px}.warehouse-flow-bar{width:min(18px,42%);min-height:0;border-radius:3px 3px 0 0}.warehouse-flow-month>span{margin-top:6px}.warehouse-receipt-list a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid #edf1ef;color:#344a42;text-decoration:none}.warehouse-receipt-list a span{min-width:0}.warehouse-receipt-list strong,.warehouse-receipt-list small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.warehouse-receipt-list strong{font-size:11px}.warehouse-receipt-list small{color:#748780;font-size:10px}.warehouse-receipt-list em{font-size:10px;font-style:normal;white-space:nowrap;color:#6f7d77}.warehouse-receipt-list em.warehouse-pending{color:#9a6200}.warehouse-receipt-list em.warehouse-approved{color:#08775f}.warehouse-top-issued{margin-top:14px}.warehouse-top-issued>div{display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:11px}.warehouse-top-issued>div span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.warehouse-top-issued small{margin-left:5px;color:#82918a}.warehouse-top-issued strong{white-space:nowrap}.warehouse-overview-card :focus-visible{outline:2px solid #0f766e;outline-offset:2px}@media(max-width:1100px){.warehouse-overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.warehouse-activity-card{grid-column:1/-1}}@media(max-width:640px){.warehouse-overview-head{align-items:start;flex-direction:column}.warehouse-overview-grid{grid-template-columns:1fr}.warehouse-activity-card{grid-column:auto}.warehouse-overview-card{padding:14px}}
+.inventory-page-header { margin-bottom: 20px; padding: 12px 0 18px; border-bottom: 1px solid #dbe3e8; }
+.inventory-page-header h1 { margin: 4px 0 0; font-size: 24px; font-weight: 600; color: #20353e; }
+.inventory-eyebrow { font-size: 11px; color: #607782; font-weight: 600; }
+.inventory-surface { background: #fff; border-block: 1px solid #dbe3e8; }
+.inventory-items-table { min-width: 1040px; font-size: 13px; }
+.inventory-items-table th:first-child { min-width: 215px; }.inventory-items-table th { font-size: 11px; font-weight: 600; }
+.inventory-items-table .fs-6 { font-size: 14px !important; }
+.inventory-items-table td:last-child .btn { display: grid; place-items: center; min-width: 36px; min-height: 40px; }
+.inventory-items-table td { padding-top: 14px; padding-bottom: 14px; }
+.inventory-items-table td:nth-child(4), .inventory-items-table td:nth-child(5) { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.inventory-filter-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.inventory-filter-field { display: grid; gap: 5px; min-width: 185px; font-size: 12px; font-weight: 600; color: #4c616a; }
+.inventory-filter-field .form-control, .inventory-filter-field .form-select { min-height: 40px; font-size: 14px; color: #20353e; }
+.inventory-search-field { flex: 1 1 250px; max-width: 380px; }
+.inventory-refresh { width: 40px; height: 40px; display: grid; place-items: center; }
+.inventory-result-line { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 12px; color: #62727b; }
+.inventory-result-line span:first-child { color: #20353e; font-weight: 600; }
+.batch-workspace-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 0 0 14px; border-bottom: 1px solid #dbe3e8; }
+.batch-workspace-title { margin: 3px 0; color: #20353e; font-size: 20px; font-weight: 600; }
+.batch-workspace-description { margin: 0; color: #62727b; font-size: 13px; }
+.batch-workspace-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.batch-workspace-actions .btn { min-height: 38px; display: inline-flex; align-items: center; gap: 6px; }
+.batch-status-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+.batch-status-shortcuts button { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 8px 12px; color: #40545c; background: #fff; border: 1px solid #dbe3e8; border-radius: 6px; text-align: left; }
+.batch-status-shortcuts button:hover, .batch-status-shortcuts button.active { border-color: #11856f; background: #f0faf7; }
+.batch-status-shortcuts button.active { box-shadow: inset 0 -2px #11856f; }
+.batch-status-shortcuts strong { color: #20353e; font-variant-numeric: tabular-nums; }
+.batch-filter-bar { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; padding: 12px; background: #f7f9fa; border: 1px solid #e0e7eb; border-radius: 6px; }
+.batch-filter-field { display: grid; gap: 4px; min-width: 165px; color: #52656e; font-size: 11px; font-weight: 600; }
+.batch-search-field { flex: 1 1 245px; }
+.batch-filter-field .form-control, .batch-filter-field .form-select { min-height: 38px; font-size: 13px; }
+.batch-refresh { width: 38px; height: 38px; display: grid; place-items: center; }
+.batch-filter-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: -5px 0 14px; color: #62727b; font-size: 12px; }
+.batch-filter-footer > span { font-weight: 600; color: #20353e; }
+.batch-filter-footer .btn { min-height: 36px; }
+.batch-group-card { border-radius: 6px; }
+.batch-group-heading { cursor: pointer; }
+.batch-group-heading:focus-visible { outline: 3px solid #5ba8fb; outline-offset: -3px; }
+.item-batches-panel { width: min(1040px, 100%); max-height: min(760px, calc(100dvh - 24px)); display: flex; flex-direction: column; overflow: hidden; }
+.item-batches-header, .item-batches-toolbar, .item-batches-footer { padding: 16px 20px; }
+.item-batches-header { border-bottom: 1px solid #dbe3e8; }
+.item-batches-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid #e5ebef; }
+.item-batches-toolbar .form-select { min-width: 175px; }
+.item-batches-toolbar label { white-space: nowrap; }
+.item-batches-scroll { overflow: auto; min-height: 100px; }
+.item-batches-table { min-width: 740px; font-size: 13px; }
+.item-batches-table th { position: sticky; top: 0; z-index: 1; white-space: nowrap; font-size: 11px; }
+.item-batches-table th { padding: 10px 12px; }
+.item-batches-table td { padding: 12px; }
+.item-batches-table td:first-child { min-width: 190px; overflow-wrap: anywhere; }
+.item-batches-table td:nth-child(3) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.item-batches-footer { border-top: 1px solid #dbe3e8; }
+.item-batches-footer .btn { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 575.98px) {
+  .inventory-kpis { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  .inventory-kpis > div { flex: 0 0 170px; width: 170px; }
+  .inventory-tabs-bar { overflow-x: auto; flex-wrap: nowrap !important; scrollbar-width: thin; }
+  .inventory-tabs-list { flex-wrap: nowrap !important; min-width: max-content; }
+  .inventory-tabs-list .nav-tab-btn { white-space: nowrap; }
+  .inventory-kpis .card-modern { padding: 12px !important; }
+  .inventory-kpis h3 { font-size: 19px; overflow-wrap: anywhere; }
+  .inventory-kpis .stat-badge { transform: scale(.85); transform-origin: top right; }
+  .inventory-kpis .small { font-size: 11px; line-height: 1.35; }
+  .inventory-filter-field, .inventory-search-field { flex: 1 1 100%; max-width: none; }
+  .inventory-refresh { width: 100%; }
+  .item-batches-header, .item-batches-toolbar, .item-batches-footer { padding: 12px; }
+}
+.ingredient-form-section { position: relative; padding-top: 14px; border-top: 1px solid #e2e8f0; }
+.unit-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.inventory-page-header .btn { min-height: 44px; border-radius: 6px; font-size: 13px; }
 .inventory-container {
   animation: fadeIn 0.25s ease-out;
 }
@@ -2273,7 +2420,7 @@ onUnmounted(() => {
 
 .card-modern {
   background: #ffffff;
-  border-radius: 14px;
+  border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
@@ -2285,7 +2432,7 @@ onUnmounted(() => {
   padding: 14px 16px;
   border: 1px solid #f1aeb5;
   border-left: 4px solid #dc3545;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff5f5;
   box-shadow: 0 8px 20px rgba(127, 29, 29, 0.1);
 }
@@ -2438,7 +2585,11 @@ onUnmounted(() => {
 }
 
 .item-modal-form { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
-.item-modal-scroll { min-height: 0; overflow-y: auto; padding: 0 24px 12px; overscroll-behavior: contain; }
+.item-modal-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 24px 12px; overscroll-behavior: contain; }
+.item-modal-scroll .row > * { min-width: 0; }
+.item-modal-scroll .form-label { overflow-wrap: anywhere; }
+.ingredient-form-section .help-tooltip { position: static; }
+.item-modal-scroll .help-tooltip-panel { top: 48px; left: 0; right: 0; width: 100%; }
 .item-modal-footer { flex: 0 0 auto; padding: 12px 24px max(12px, env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid #e2e8f0; }
 
 @media (max-width: 575.98px) {
@@ -2554,6 +2705,14 @@ onUnmounted(() => {
 }
 
 @media (max-width: 575.98px) {
+  .batch-workspace-header { align-items: flex-start; flex-direction: column; }
+  .batch-workspace-actions { width: 100%; justify-content: space-between; }
+  .batch-status-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .batch-status-shortcuts button { font-size: 12px; }
+  .batch-filter-bar { align-items: stretch; }
+  .batch-filter-field, .batch-search-field { flex: 1 1 100%; min-width: 0; }
+  .batch-refresh { width: 100%; }
+  .batch-filter-footer .ms-auto { margin-left: 0 !important; }
   .batch-modal-panel { max-height: calc(100dvh - 16px); }
   .batch-modal-panel > .d-flex:first-child { padding: 16px 16px 10px; margin: 0 16px 10px !important; }
   .batch-modal-body { padding: 0 16px 10px; }

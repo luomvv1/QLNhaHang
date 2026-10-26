@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Restaurant.Api.Data;
 using Restaurant.Api.Entities;
+
+using System.Security.Claims;
+using Restaurant.Api.Services;
 
 namespace Restaurant.Api.Controllers.Admin;
 
@@ -38,17 +42,25 @@ public class UpdateFoodRequest
     public bool IsActive { get; set; }
     public List<VariantRequest> Variants { get; set; } = new List<VariantRequest>();
 }
+
+public class UploadFoodImageRequest
+{
+    public IFormFile File { get; set; } = null!;
+}
 // ==============================================================
 
 [Route("api/admin/food")]
+[Authorize(Roles = "admin,manager")]
 [ApiController]
 public class FoodController : ControllerBase
 {
     private readonly RestaurantDbContext _dbContext;
+    private readonly IAuditLogService _auditLogService;
 
-    public FoodController(RestaurantDbContext dbContext)
+    public FoodController(RestaurantDbContext dbContext, IAuditLogService auditLogService)
     {
         _dbContext = dbContext;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet("list")]
@@ -93,8 +105,10 @@ public class FoodController : ControllerBase
     }
 
     [HttpPost("upload-image")]
-    public async Task<IActionResult> UploadImage([FromForm] IFormFile file)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadImage([FromForm] UploadFoodImageRequest request)
     {
+        var file = request?.File;
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Vui lòng chọn file hình ảnh hợp lệ!" });
 
@@ -181,135 +195,222 @@ public class FoodController : ControllerBase
                 SortOrder = 1,
                 IsActive = true
             };
-            _dbContext.FoodVariants.Add(defaultVariant);
-            await _dbContext.SaveChangesAsync();
-        }
-
-        return Ok(new { message = "Thêm món ăn và biến thể thành công!", foodId = food.FoodId });
+        _dbContext.FoodVariants.Add(defaultVariant);
+        await _dbContext.SaveChangesAsync();
     }
 
-    [HttpPut("update")]
-    public async Task<IActionResult> UpdateFood([FromBody] UpdateFoodRequest request)
+    var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var aid) ? (int?)aid : null;
+    await _auditLogService.LogAsync(
+        adminId,
+        "food_created",
+        "Food",
+        food.FoodId.ToString(),
+        null,
+        new { foodName = food.FoodName, minPrice = food.MinPrice, categoryId = food.CategoryId });
+
+    return Ok(new { message = "Thêm món ăn và biến thể thành công!", foodId = food.FoodId });
+}
+
+[HttpPut("update")]
+public async Task<IActionResult> UpdateFood([FromBody] UpdateFoodRequest request)
+{
+    if (string.IsNullOrEmpty(request.FoodName))
+        return BadRequest(new { message = "Tên món ăn không được để trống!" });
+
+    var food = await _dbContext.Foods
+        .Include(f => f.FoodVariants) 
+        .FirstOrDefaultAsync(f => f.FoodId == request.FoodId);
+
+    if (food == null)
+        return BadRequest(new { message = "Không tìm thấy món ăn này!" });
+
+    var category = await _dbContext.FoodCategories.FindAsync(request.CategoryId);
+    if (category == null)
+        return BadRequest(new { message = "Danh mục không tồn tại!" });
+
+    var oldSnapshot = new {
+        foodName = food.FoodName,
+        minPrice = food.MinPrice,
+        categoryId = food.CategoryId,
+        foodStatus = food.FoodStatus,
+        isActive = food.IsActive,
+        variants = food.FoodVariants.Select(v => new { v.VariantName, v.Price }).ToList()
+    };
+
+    // 1. Cập nhật thông tin món mẹ
+    food.CategoryId = request.CategoryId;
+    food.FoodName = request.FoodName;
+    food.Description = request.Description;
+    food.ImageUrl = request.ImageUrl;
+    food.MinPrice = request.MinPrice;
+    food.FoodStatus = request.FoodStatus;
+    food.IsActive = request.IsActive;
+
+    // 2. Xử lý đồng bộ biến thể: Cập nhật, Thêm mới và Xóa các biến thể bị bỏ
+    if (request.Variants != null)
     {
-        if (string.IsNullOrEmpty(request.FoodName))
-            return BadRequest(new { message = "Tên món ăn không được để trống!" });
+        var submittedIds = request.Variants
+            .Where(v => v.VariantId.GetValueOrDefault() > 0)
+            .Select(v => v.VariantId.Value)
+            .ToHashSet();
 
-        var food = await _dbContext.Foods
-            .Include(f => f.FoodVariants) 
-            .FirstOrDefaultAsync(f => f.FoodId == request.FoodId);
+        // Các biến thể cũ không còn nằm trong danh sách gửi lên -> Xóa
+        var removedVariants = food.FoodVariants
+            .Where(v => !submittedIds.Contains(v.VariantId))
+            .ToList();
 
-        if (food == null)
-            return BadRequest(new { message = "Không tìm thấy món ăn này!" });
-
-        var category = await _dbContext.FoodCategories.FindAsync(request.CategoryId);
-        if (category == null)
-            return BadRequest(new { message = "Danh mục không tồn tại!" });
-
-        // 1. Cập nhật thông tin món mẹ
-        food.CategoryId = request.CategoryId;
-        food.FoodName = request.FoodName;
-        food.Description = request.Description;
-        food.ImageUrl = request.ImageUrl;
-        food.MinPrice = request.MinPrice;
-        food.FoodStatus = request.FoodStatus;
-        food.IsActive = request.IsActive;
-
-        // 2. Xử lý đồng bộ biến thể: Cập nhật, Thêm mới và Xóa các biến thể bị bỏ
-        if (request.Variants != null)
+        foreach (var rem in removedVariants)
         {
-            var submittedIds = request.Variants
-                .Where(v => v.VariantId.GetValueOrDefault() > 0)
-                .Select(v => v.VariantId.Value)
-                .ToHashSet();
+            var hasHistory = await _dbContext.OrderItems.AnyAsync(oi => oi.VariantId == rem.VariantId)
+                          || await _dbContext.InvoiceItems.AnyAsync(ii => ii.VariantId == rem.VariantId);
 
-            // Các biến thể cũ không còn nằm trong danh sách gửi lên -> Xóa
-            var removedVariants = food.FoodVariants
-                .Where(v => !submittedIds.Contains(v.VariantId))
-                .ToList();
-
-            foreach (var rem in removedVariants)
+            if (hasHistory)
             {
-                var hasHistory = await _dbContext.OrderItems.AnyAsync(oi => oi.VariantId == rem.VariantId)
-                              || await _dbContext.InvoiceItems.AnyAsync(ii => ii.VariantId == rem.VariantId);
-
-                if (hasHistory)
-                {
-                    rem.IsActive = false; // Đã từng có đơn hàng thì ẩn đi
-                }
-                else
-                {
-                    _dbContext.FoodVariants.Remove(rem); // Chưa từng bán thì xóa cứng khỏi DB
-                }
+                rem.IsActive = false; // Đã từng có đơn hàng thì ẩn đi
             }
-
-            int sortIndex = 1;
-            foreach (var v in request.Variants)
+            else
             {
-                if (v.VariantId.GetValueOrDefault() > 0)
-                {
-                    var existingVariant = food.FoodVariants.FirstOrDefault(x => x.VariantId == v.VariantId.GetValueOrDefault());
-                    if (existingVariant != null)
-                    {
-                        existingVariant.VariantName = v.VariantName;
-                        existingVariant.Price = v.Price;
-                        existingVariant.Unit = string.IsNullOrEmpty(v.Unit) ? "Phần" : v.Unit;
-                        existingVariant.SortOrder = sortIndex++;
-                        existingVariant.IsActive = true;
-                    }
-                }
-                else
-                {
-                    var newVariant = new FoodVariant
-                    {
-                        FoodId = food.FoodId,
-                        VariantName = string.IsNullOrWhiteSpace(v.VariantName) ? "Phần Tiêu Chuẩn" : v.VariantName,
-                        Price = v.Price,
-                        Unit = string.IsNullOrEmpty(v.Unit) ? "Phần" : v.Unit,
-                        SortOrder = sortIndex++,
-                        IsActive = true
-                    };
-                    _dbContext.FoodVariants.Add(newVariant);
-                }
+                _dbContext.FoodVariants.Remove(rem); // Chưa từng bán thì xóa cứng khỏi DB
             }
         }
 
-        // Đảm bảo món không bao giờ bị rỗng biến thể
-        if (!food.FoodVariants.Any(v => v.IsActive))
+        int sortIndex = 1;
+        foreach (var v in request.Variants)
         {
-            var fallback = new FoodVariant
+            if (v.VariantId.GetValueOrDefault() > 0)
             {
-                FoodId = food.FoodId,
-                VariantName = "Phần Tiêu Chuẩn",
-                Price = food.MinPrice,
-                Unit = "Phần",
-                SortOrder = 1,
-                IsActive = true
-            };
-            _dbContext.FoodVariants.Add(fallback);
+                var existingVariant = food.FoodVariants.FirstOrDefault(x => x.VariantId == v.VariantId.GetValueOrDefault());
+                if (existingVariant != null)
+                {
+                    existingVariant.VariantName = v.VariantName;
+                    existingVariant.Price = v.Price;
+                    existingVariant.Unit = string.IsNullOrEmpty(v.Unit) ? "Phần" : v.Unit;
+                    existingVariant.SortOrder = sortIndex++;
+                    existingVariant.IsActive = true;
+                }
+            }
+            else
+            {
+                var newVariant = new FoodVariant
+                {
+                    FoodId = food.FoodId,
+                    VariantName = string.IsNullOrWhiteSpace(v.VariantName) ? "Phần Tiêu Chuẩn" : v.VariantName,
+                    Price = v.Price,
+                    Unit = string.IsNullOrEmpty(v.Unit) ? "Phần" : v.Unit,
+                    SortOrder = sortIndex++,
+                    IsActive = true
+                };
+                _dbContext.FoodVariants.Add(newVariant);
+            }
         }
-
-        await _dbContext.SaveChangesAsync();
-
-        return Ok(new { message = "Cập nhật món ăn thành công!" });
     }
 
-    [HttpDelete("delete")]
-    public async Task<IActionResult> DeleteFood([FromQuery] int foodId)
+    // Đảm bảo món không bao giờ bị rỗng biến thể
+    if (!food.FoodVariants.Any(v => v.IsActive))
     {
-        var food = await _dbContext.Foods
-            .Include(f => f.FoodVariants)
-            .FirstOrDefaultAsync(f => f.FoodId == foodId);
-
-        if (food == null)
-            return BadRequest(new { message = "Không tìm thấy món ăn này!" });
-        
-        // Ngừng bán món ăn (Không xóa biến thể để khi mở bán lại vẫn giữ nguyên size & giá)
-        food.IsActive = false;
-        
-        await _dbContext.SaveChangesAsync();
-
-        return Ok(new { message = "Đã ngừng bán món ăn thành công!" });
+        var fallback = new FoodVariant
+        {
+            FoodId = food.FoodId,
+            VariantName = "Phần Tiêu Chuẩn",
+            Price = food.MinPrice,
+            Unit = "Phần",
+            SortOrder = 1,
+            IsActive = true
+        };
+        _dbContext.FoodVariants.Add(fallback);
     }
+
+    await _dbContext.SaveChangesAsync();
+
+    var updateAdminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uaid) ? (int?)uaid : null;
+    var newSnapshot = new {
+        foodName = food.FoodName,
+        minPrice = food.MinPrice,
+        categoryId = food.CategoryId,
+        foodStatus = food.FoodStatus,
+        isActive = food.IsActive,
+        variants = food.FoodVariants.Where(v => v.IsActive).Select(v => new { v.VariantName, v.Price }).ToList()
+    };
+    await _auditLogService.LogAsync(updateAdminId, "food_updated", "Food", food.FoodId.ToString(), oldSnapshot, newSnapshot);
+
+    return Ok(new { message = "Cập nhật món ăn thành công!" });
+}
+
+[HttpDelete("delete")]
+public async Task<IActionResult> DeleteFood([FromQuery] int foodId)
+{
+    var food = await _dbContext.Foods
+        .Include(f => f.FoodVariants)
+        .FirstOrDefaultAsync(f => f.FoodId == foodId);
+
+    if (food == null)
+        return BadRequest(new { message = "Không tìm thấy món ăn này!" });
+    
+    var oldSnapshot = new { foodName = food.FoodName, minPrice = food.MinPrice, categoryId = food.CategoryId, isActive = true };
+    food.IsActive = false;
+    await _dbContext.SaveChangesAsync();
+
+    var delAdminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var daid) ? (int?)daid : null;
+    await _auditLogService.LogAsync(delAdminId, "food_deleted", "Food", foodId.ToString(), oldSnapshot, new { isActive = false, foodName = food.FoodName });
+
+    return Ok(new { message = "Đã ngừng bán món ăn thành công!" });
+}
+
+/// <summary>
+/// Xóa vĩnh viễn món ăn khỏi cơ sở dữ liệu.
+/// Cho phép xóa vì phiếu hóa đơn và đơn hàng đã lưu vết tên món và giá tiền tại thời điểm thanh toán.
+/// </summary>
+[HttpDelete("permanent-delete")]
+public async Task<IActionResult> PermanentDeleteFood([FromQuery] int foodId)
+{
+    var food = await _dbContext.Foods
+        .Include(f => f.FoodVariants)
+        .FirstOrDefaultAsync(f => f.FoodId == foodId);
+
+    if (food == null)
+        return NotFound(new { message = "Không tìm thấy món ăn này!" });
+
+    // Kiểm tra xem món ăn có đang nằm trong order nào chưa hoàn tất không
+    var hasActiveOrder = await _dbContext.OrderItems
+        .AnyAsync(oi => oi.FoodId == foodId 
+            && oi.Order.OrderStatus != "completed" 
+            && oi.Order.OrderStatus != "cancelled" 
+            && oi.ItemStatus != "cancelled");
+    if (hasActiveOrder)
+        return BadRequest(new { message = $"Món \"{food.FoodName}\" đang nằm trong đơn gọi món đang phục vụ khách. Vui lòng hoàn tất hoặc hủy món trong đơn trước khi xóa!" });
+
+    var foodName = food.FoodName;
+    var oldSnapshot = new { foodName = food.FoodName, minPrice = food.MinPrice, categoryId = food.CategoryId };
+
+    // 1. Xóa định lượng công thức món (FoodIngredients) nếu có
+    var boms = await _dbContext.FoodIngredients.Where(fi => fi.FoodId == foodId).ToListAsync();
+    if (boms.Any())
+    {
+        _dbContext.FoodIngredients.RemoveRange(boms);
+    }
+
+    // 2. Xóa định mức khẩu phần ngày (DailyPortionControls) nếu có
+    var portions = await _dbContext.DailyPortionControls.Where(dp => dp.FoodId == foodId).ToListAsync();
+    if (portions.Any())
+    {
+        _dbContext.DailyPortionControls.RemoveRange(portions);
+    }
+
+    // 3. Xóa các biến thể (FoodVariants)
+    if (food.FoodVariants.Any())
+    {
+        _dbContext.FoodVariants.RemoveRange(food.FoodVariants);
+    }
+
+    // 4. Xóa món ăn khỏi CSDL
+    _dbContext.Foods.Remove(food);
+    await _dbContext.SaveChangesAsync();
+
+    var pDelAdminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var pdaid) ? (int?)pdaid : null;
+    await _auditLogService.LogAsync(pDelAdminId, "food_deleted", "Food", foodId.ToString(), oldSnapshot, new { permanentlyDeleted = true, foodName });
+
+    return Ok(new { message = $"Đã xóa vĩnh viễn món \"{foodName}\" thành công!" });
+}
 
     [HttpPatch("reactivate")]
     public async Task<IActionResult> ReactivateFood([FromQuery] int foodId)

@@ -13,26 +13,27 @@
   --shadow-subtle: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
   --shadow-hover: 0 10px 25px -3px rgba(15, 23, 42, 0.1), 0 4px 8px -2px rgba(15, 23, 42, 0.06);
 
-  /* ===== DOLA RESTAURANT DESIGN SYSTEM TOKENS ===== */
-  --dola-primary: #D69C52;
-  --dola-canvas: #143B36;
-  --dola-surface-alt: #10302C;
-  --dola-surface-raised: #1d4d46;
-  --dola-on-primary: #222222;
-  --dola-ink: #FFFFFF;
-  --dola-body: #D0D0D0;
-  --dola-muted: #8A9E9B;
-  --dola-hairline: rgba(214, 156, 82, 0.25);
-  --dola-accent: #C79C60;
+  /* ===== DOLA RESTAURANT DESIGN SYSTEM TOKENS (Savory Table Warm Cream & Wine) ===== */
+  --dola-primary: #B87D32;
+  --dola-wine: #7A1C28;
+  --dola-canvas: #FAF7F2;
+  --dola-surface-alt: #F4ECE1;
+  --dola-surface-raised: #FFFFFF;
+  --dola-on-primary: #FFFFFF;
+  --dola-ink: #1F1A17;
+  --dola-body: #574A40;
+  --dola-muted: #8C7F75;
+  --dola-hairline: rgba(184, 125, 50, 0.22);
+  --dola-accent: #C58F49;
   --dola-font-display: 'Dancing Script', cursive;
   --dola-font-body: 'Quicksand', sans-serif;
-  --dola-btn-shadow: rgb(163, 123, 68) 0px 3px 0px 0px;
+  --dola-btn-shadow: 0 4px 15px rgba(122, 28, 40, 0.3);
 }
 
 body {
   font-family: 'Quicksand', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: #FAF7F2;
+  color: #1F1A17;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -42,14 +43,14 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #10302C;
+  background: #F4ECE1;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D69C52;
+  background: #B87D32;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #C79C60;
+  background: #8C5E28;
 }
 
 /* ========================================================
@@ -88,48 +89,48 @@ body {
 
 /* Dola Card */
 .dola-card {
-  background: var(--dola-surface-alt);
+  background: #FFFFFF;
   border: 1px solid var(--dola-hairline);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 6px 20px rgba(60, 45, 35, 0.06);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .dola-card:hover {
-  border-color: rgba(214, 156, 82, 0.5);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  border-color: rgba(184, 125, 50, 0.45);
+  box-shadow: 0 12px 28px rgba(60, 45, 35, 0.12);
 }
 
-/* Dola Button Primary */
+/* Dola Button Primary (Savory Table Burgundy Wine Red) */
 .dola-btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background-color: var(--dola-primary);
-  color: #1b1814 !important;
+  background: linear-gradient(135deg, #7A1C28 0%, #5E141D 100%);
+  color: #FFFFFF !important;
   font-family: var(--dola-font-body);
   font-weight: 700;
   font-size: 15px;
   height: 44px;
   padding: 0 24px;
-  border-radius: 8px;
+  border-radius: 9999px;
   border: none;
-  box-shadow: var(--dola-btn-shadow);
+  box-shadow: 0 4px 15px rgba(122, 28, 40, 0.35);
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.15s ease-in-out;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dola-btn-primary:hover {
-  background-color: #e2ab63;
-  transform: translateY(-1px);
-  box-shadow: rgb(163, 123, 68) 0px 4px 0px 0px;
+  background: linear-gradient(135deg, #8F2332 0%, #6E1823 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(122, 28, 40, 0.45);
+  color: #FFFFFF !important;
 }
 
 .dola-btn-primary:active {
-  transform: translateY(2px);
-  box-shadow: rgb(163, 123, 68) 0px 1px 0px 0px;
+  transform: translateY(1px);
 }
 
 .dola-btn-outline {
@@ -138,47 +139,106 @@ body {
   justify-content: center;
   gap: 8px;
   background-color: transparent;
-  color: var(--dola-primary) !important;
-  border: 1px solid var(--dola-primary);
+  color: #7A1C28 !important;
+  border: 1.5px solid #7A1C28;
+  border-radius: 9999px;
   font-family: var(--dola-font-body);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 15px;
   height: 44px;
-  padding: 0 22px;
-  border-radius: 8px;
+  padding: 0 24px;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in-out;
 }
 
 .dola-btn-outline:hover {
-  background-color: rgba(214, 156, 82, 0.15);
-  border-color: #e2ab63;
+  background-color: #7A1C28;
   color: #FFFFFF !important;
+  transform: translateY(-1px);
 }
+
 
 /* Dola Inputs & Selects */
 .dola-input {
-  background-color: var(--dola-surface-alt);
-  border: 1px solid var(--dola-hairline);
-  color: #FFFFFF;
-  border-radius: 8px;
-  padding: 10px 14px;
+  background-color: #FFFFFF;
+  border: 1.5px solid var(--dola-hairline);
+  color: var(--dola-ink);
+  border-radius: 10px;
+  padding: 11px 16px;
   font-family: var(--dola-font-body);
+  font-size: 15px;
   width: 100%;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
 }
 
 .dola-input:focus {
   outline: none;
   border-color: var(--dola-primary);
-  box-shadow: 0 0 0 3px rgba(214, 156, 82, 0.2);
-  background-color: #143B36;
-  color: #FFFFFF;
+  box-shadow: 0 0 0 4px rgba(184, 125, 50, 0.15);
+  background-color: #FFFFFF;
+  color: var(--dola-ink);
 }
 
 .dola-input::placeholder {
-  color: #7b9490;
+  color: #9C8E84;
+}
+
+.dola-input:read-only {
+  background-color: var(--dola-surface-alt);
+  color: #6E6157;
+  cursor: not-allowed;
+}
+
+/* Automation & Animation Keyframes */
+@keyframes dolaFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dolaFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dolaScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dolaPulseSubtle {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.dola-anim-fade-up {
+  animation: dolaFadeUp 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dola-anim-delay-1 { animation-delay: 0.1s; }
+.dola-anim-delay-2 { animation-delay: 0.2s; }
+.dola-anim-delay-3 { animation-delay: 0.3s; }
+.dola-anim-delay-4 { animation-delay: 0.4s; }
+
+/* Global Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
 }
 
 /* Pill Badges */

@@ -40,7 +40,7 @@
                   <div class="account-avatar">{{ initials }}</div>
                   <div class="d-flex justify-content-between align-items-start gap-2 mt-3">
                     <div>
-                      <h2 class="text-white fs-5 fw-bold mb-1">{{ account.fullName }}</h2>
+                      <h2 class="fs-5 fw-bold mb-1" style="color: #1F1A17;">{{ account.fullName }}</h2>
                       <p class="text-body-dola small mb-0">{{ account.email }}</p>
                     </div>
                     <span class="member-status">Thành viên</span>
@@ -74,7 +74,7 @@
                     <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
                       <div>
                         <span class="eyebrow">Quyền lợi thành viên</span>
-                        <h3 class="text-white fs-6 fw-bold mb-0">Điểm tích lũy của bạn</h3>
+                        <h3 class="fs-6 fw-bold mb-0" style="color: #1F1A17;">Điểm tích lũy của bạn</h3>
                       </div>
                       <strong class="text-gold fs-4">{{ account.pointsBalance.toLocaleString('vi-VN') }}</strong>
                     </div>
@@ -88,7 +88,7 @@
 
           <div v-if="showEdit" class="dola-card p-4 mb-4 edit-panel reveal-card" style="--delay: 0ms">
             <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
-              <div><span class="eyebrow">Thông tin cá nhân</span><h2 class="text-white fs-5 fw-bold mb-0">Cập nhật tài khoản</h2></div>
+              <div><span class="eyebrow">Thông tin cá nhân</span><h2 class="fs-5 fw-bold mb-0" style="color: #1F1A17;">Cập nhật tài khoản</h2></div>
               <span class="text-body-dola small">Thông tin này dùng để xác nhận đặt bàn</span>
             </div>
             <form class="row g-3" @submit.prevent="saveAccount">
@@ -124,7 +124,7 @@
               <div>
                 <span class="eyebrow">Lịch hẹn ẩm thực của bạn</span>
                 <div class="d-flex align-items-center gap-3 flex-wrap">
-                  <h2 class="text-white fs-4 fw-bold mb-0">Bàn Đã Đặt &amp; Trạng Thái</h2>
+                  <h2 class="fs-4 fw-bold mb-0" style="color: #1F1A17;">Bàn Đã Đặt &amp; Trạng Thái</h2>
                   <span class="live-status-pill">
                     <span class="live-dot-pulse"></span>
                     <span>Đồng bộ trực tiếp Realtime</span>
@@ -181,7 +181,7 @@
             <!-- Empty State nếu không có kết quả -->
             <div v-if="!filteredReservations.length" class="empty-state py-5 text-center">
               <span class="fs-1">🪷</span>
-              <h5 class="text-white fw-bold mt-2">Chưa có phiếu đặt bàn nào trong mục này</h5>
+              <h5 class="fw-bold mt-2" style="color: #1F1A17;">Chưa có phiếu đặt bàn nào trong mục này</h5>
               <p class="text-body-dola small mb-3">Quý khách có thể gửi yêu cầu đặt bàn trực tuyến để nhà hàng giữ vị trí đẹp nhất.</p>
               <router-link to="/customer/reservation" class="dola-btn-primary">Đặt bàn trải nghiệm ngay</router-link>
             </div>
@@ -302,23 +302,23 @@
           </section>
 
           <section v-else-if="activeTab === 'invoices'" class="dola-card p-4 content-panel">
-            <div class="section-heading-row"><div><span class="eyebrow">Lịch sử chi tiêu</span><h2 class="text-white fs-4 fw-bold mb-0">Hóa đơn đã thanh toán</h2></div></div>
+            <div class="section-heading-row"><div><span class="eyebrow">Lịch sử chi tiêu</span><h2 class="fs-4 fw-bold mb-0" style="color: #1F1A17;">Hóa đơn đã thanh toán</h2></div></div>
             <div v-if="!account.invoices.length" class="empty-state"><span>▣</span><p>Chưa có hóa đơn gắn với tài khoản này.</p></div>
             <div v-else class="invoice-list">
               <article v-for="invoice in account.invoices" :key="invoice.invoiceId" class="invoice-item">
                 <div>
-                  <strong>{{ invoice.invoiceCode }}</strong>
-                  <p>{{ formatDateTime(invoice.issuedAt) }} · {{ invoice.items.length }} mon</p>
+                  <strong style="color: #1F1A17;">{{ invoice.invoiceCode }}</strong>
+                  <p>{{ formatDateTime(invoice.issuedAt) }} · {{ invoice.items.length }} món</p>
                   <div class="invoice-items"><span v-for="item in invoice.items.slice(0, 3)" :key="`${invoice.invoiceId}-${item.foodNameSnapshot}-${item.variantSnapshot}`">{{ item.quantity }}x {{ item.foodNameSnapshot }}</span></div>
                 </div>
-                <div class="invoice-actions"><strong class="text-gold">{{ formatCurrency(invoice.totalAmount) }}</strong><button type="button" class="invoice-detail-link" @click="selectedInvoice = invoice">Xem bill</button></div>
+                <div class="invoice-actions"><strong style="color: var(--dola-wine); font-weight: 800;">{{ formatCurrency(invoice.totalAmount) }}</strong><button type="button" class="invoice-detail-link" @click="selectedInvoice = invoice">Xem bill</button></div>
               </article>
             </div>
           </section>
 
           <section v-else class="row g-4">
-            <div class="col-12 col-lg-7"><article class="dola-card p-4 content-panel h-100"><div class="section-heading-row"><div><span class="eyebrow">Diem thuong</span><h2 class="text-white fs-4 fw-bold mb-0">Bien dong diem</h2></div><strong class="text-gold fs-4">{{ account.pointsBalance }}</strong></div><div v-if="!account.pointHistory.length" class="empty-state py-5"><span>✦</span><p>Chua co giao dich diem.</p></div><div v-else class="point-list"><div v-for="point in account.pointHistory" :key="point.pointTransactionId" class="point-item"><div><strong>{{ point.note || 'Giao dich diem' }}</strong><small>{{ formatDateTime(point.createdAt) }}</small></div><b :class="point.points >= 0 ? 'point-plus' : 'point-minus'">{{ point.points >= 0 ? '+' : '' }}{{ point.points }}</b></div></div></article></div>
-            <div class="col-12 col-lg-5"><article class="dola-card p-4 content-panel h-100"><span class="eyebrow">Ca nhan hoa</span><h2 class="text-white fs-4 fw-bold mb-2">Mau giao dien</h2><p class="text-body-dola small">Chon mau nhan dien phu hop. Cai dat duoc luu tren thiet bi nay.</p><div class="accent-picker"><button v-for="color in accents" :key="color" type="button" :style="{ backgroundColor: color }" :class="['accent-swatch', { selected: accentColor === color }]" :aria-label="`Chon mau ${color}`" @click="setAccent(color)"></button></div><div class="mini-preferences mt-4"><div><span>Trang thai tai khoan</span><strong class="text-success">Dang hoat dong</strong></div><div><span>Phuong thuc dat ban</span><strong>Can nha hang xac nhan</strong></div><div><span>Dat mon truoc</span><strong class="text-gold">Chua mo</strong></div></div></article></div>
+            <div class="col-12 col-lg-7"><article class="dola-card p-4 content-panel h-100"><div class="section-heading-row"><div><span class="eyebrow">Điểm thưởng</span><h2 class="fs-4 fw-bold mb-0" style="color: #1F1A17;">Biến động điểm</h2></div><strong class="text-gold fs-4">{{ account.pointsBalance }}</strong></div><div v-if="!account.pointHistory.length" class="empty-state py-5"><span>✦</span><p>Chưa có giao dịch điểm.</p></div><div v-else class="point-list"><div v-for="point in account.pointHistory" :key="point.pointTransactionId" class="point-item"><div><strong style="color: #1F1A17;">{{ point.note || 'Giao dịch điểm' }}</strong><small>{{ formatDateTime(point.createdAt) }}</small></div><b :class="point.points >= 0 ? 'point-plus' : 'point-minus'">{{ point.points >= 0 ? '+' : '' }}{{ point.points }}</b></div></div></article></div>
+            <div class="col-12 col-lg-5"><article class="dola-card p-4 content-panel h-100"><span class="eyebrow">Cá nhân hóa</span><h2 class="fs-4 fw-bold mb-2" style="color: #1F1A17;">Màu giao diện</h2><p class="text-body-dola small">Chọn màu nhận diện phù hợp. Cài đặt được lưu trên thiết bị này.</p><div class="accent-picker"><button v-for="color in accents" :key="color" type="button" :style="{ backgroundColor: color }" :class="['accent-swatch', { selected: accentColor === color }]" :aria-label="`Chọn màu ${color}`" @click="setAccent(color)"></button></div><div class="mini-preferences mt-4"><div><span>Trạng thái tài khoản</span><strong class="text-success">Đang hoạt động</strong></div><div><span>Phương thức đặt bàn</span><strong style="color: #1F1A17;">Cần nhà hàng xác nhận</strong></div><div><span>Đặt món trước</span><strong class="text-gold">Chưa mở</strong></div></div></article></div>
           </section>
 
           <div v-if="selectedInvoice" class="bill-modal-backdrop" @click.self="selectedInvoice = null">
@@ -411,6 +411,7 @@
 </template>
 
 <script setup>
+import { clearSession } from '@/auth/session';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
@@ -427,10 +428,7 @@ const errorMessage = ref('');
 
 function handleLogout() {
   if (confirm('Quý khách có chắc chắn muốn đăng xuất khỏi tài khoản?')) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
-    localStorage.removeItem('fullName');
-    sessionStorage.removeItem('ai_conversation_id');
+    clearSession();
     router.push('/customer/intro');
   }
 }
@@ -714,15 +712,13 @@ function printBill() { window.print(); }
 
 onMounted(() => {
   loadAccount();
-  signalRService.on('ReservationUpdated', handleReservationLiveUpdate);
-  signalRService.on('StaffOrderUpdated', scheduleAccountRefresh);
+  signalRService.on('AccountUpdated', scheduleAccountRefresh);
 });
 
 onUnmounted(() => {
   window.clearTimeout(refreshTimer);
   window.clearTimeout(alertTimer);
-  signalRService.off('ReservationUpdated', handleReservationLiveUpdate);
-  signalRService.off('StaffOrderUpdated', scheduleAccountRefresh);
+  signalRService.off('AccountUpdated', scheduleAccountRefresh);
 });
 </script>
 
